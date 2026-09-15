@@ -1,0 +1,6 @@
+{
+  "name": "Rotina Inteligente — Karine",
+  "description": "Seu copiloto diário de execução, acompanhamento e produtividade operacional.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
