@@ -28,7 +28,7 @@ export const routineActivities: Activity[] = [
     id: 't22aprr-fluxo',
     name: 'Checar Fluxo APRR no Agendador',
     category: 'diaria',
-    schedule: ['07:50', '10:50', '12:50', '14:50', '16:50', '17:50', '18:50'],
+    schedule: ['07:50', '10:50', '12:50', '14:50', '16:50', '17:45'],
     recurrence: 'Diariamente (Vários horários)',
     objective: 'Conferir e processar os fluxos APRR para atualização dos relatórios de vagas.',
     instructions: [
@@ -46,7 +46,7 @@ export const routineActivities: Activity[] = [
     id: 't22aprr-bi-sub',
     name: 'BI Alerta de Vagas V2 / Alerta Diário_Sub',
     category: 'diaria',
-    schedule: ['07:55', '10:55', '12:55', '14:55', '16:55', '17:55', '18:55'],
+    schedule: ['07:55', '10:55', '12:55', '14:55', '16:55', '17:45'],
     recurrence: 'Diariamente (Após checagem do fluxo)',
     objective: 'Validar se os dados subiram corretamente no Power BI e, se necessário, rodar o Alteryx.',
     instructions: [
