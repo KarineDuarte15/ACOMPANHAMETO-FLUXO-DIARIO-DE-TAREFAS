@@ -32,7 +32,6 @@ export const ActiveModal: React.FC<ActiveModalProps> = ({
 }) => {
   if (!isOpen || !activity || !execution) return null;
 
-  // State for delay prompt form
   const [delayReason, setDelayReason] = useState('Problema técnico');
   const [explanation, setExplanation] = useState('');
   const [informedPerson, setInformedPerson] = useState('');
@@ -61,7 +60,6 @@ export const ActiveModal: React.FC<ActiveModalProps> = ({
     }
   };
 
-  // Determine alert criticality
   const isAtrasado = execution.status === 'ATRASADO';
   const isCritical = activity.priority === 'high' && isAtrasado;
 
@@ -76,16 +74,13 @@ export const ActiveModal: React.FC<ActiveModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-      {/* Backdrop */}
       <div className="fixed inset-0 bg-black/60 transition-opacity" onClick={onClose} />
 
-      {/* Modal Card */}
       <div className="relative w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-2xl transition-all border border-gray-200">
         
-        {/* Type: SCHEDULE ALERT */}
+        {/* SCHEDULE ALERT */}
         {type === 'alert' && (
           <div>
-            {/* Alert Header Banner */}
             <div className={`p-5 border-b-4 flex items-center gap-3 ${alertColor}`}>
               <AlertCircle className="h-7 w-7 flex-shrink-0 animate-bounce" />
               <div>
@@ -94,13 +89,11 @@ export const ActiveModal: React.FC<ActiveModalProps> = ({
               </div>
             </div>
 
-            {/* Alert Body */}
             <div className="p-6">
               <p className="text-gray-800 font-medium text-base mb-4">
                 Hora de executar: <span className="text-[#0339A6] font-bold">{activity.name}</span>
               </p>
 
-              {/* Instructions */}
               <div className="mb-6 rounded-lg bg-[#F2F2F2] p-4 border border-gray-200">
                 <h4 className="font-sora font-semibold text-xs text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Info className="h-3.5 w-3.5 text-[#0339A6]" /> O que você precisa fazer:
@@ -120,7 +113,6 @@ export const ActiveModal: React.FC<ActiveModalProps> = ({
                 </ul>
               </div>
 
-              {/* Quick Details Grid */}
               <div className="grid grid-cols-2 gap-4 text-xs text-gray-600 mb-6">
                 <div>
                   <span className="block text-gray-400 uppercase font-semibold">Prioridade</span>
@@ -137,7 +129,6 @@ export const ActiveModal: React.FC<ActiveModalProps> = ({
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                 <button
                   onClick={() => onPostponeActivity && onPostponeActivity(5)}
@@ -156,7 +147,7 @@ export const ActiveModal: React.FC<ActiveModalProps> = ({
           </div>
         )}
 
-        {/* Type: DELAY REPORTING DIALOGUE */}
+        {/* DELAY REPORTING DIALOGUE */}
         {type === 'delay_prompt' && (
           <form onSubmit={handleSubmit}>
             <div className="p-5 border-b border-gray-200 bg-orange-50 text-[#F24405] flex items-center gap-3">
@@ -172,7 +163,6 @@ export const ActiveModal: React.FC<ActiveModalProps> = ({
                 Karine, detectamos que a atividade <span className="font-bold text-gray-800">{activity.name}</span> está iniciando ou terminando com atraso em relação ao cronograma previsto das <span className="font-bold">{execution.scheduledTime}</span>.
               </p>
 
-              {/* Delay Reason Dropdown */}
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
                   <HelpCircle className="h-3.5 w-3.5 text-gray-400" /> Por que a atividade está atrasada?
@@ -188,7 +178,6 @@ export const ActiveModal: React.FC<ActiveModalProps> = ({
                 </select>
               </div>
 
-              {/* Explanation Field */}
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
                   Explique o motivo detalhadamente:
@@ -204,32 +193,40 @@ export const ActiveModal: React.FC<ActiveModalProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Informed Person */}
+                {/* Informed Person Select */}
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
                     <Users className="h-3.5 w-3.5 text-gray-400" /> Quem foi informado?
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={informedPerson}
                     onChange={(e) => setInformedPerson(e.target.value)}
-                    placeholder="Ex: Coordenação, Erika"
-                    className="w-full text-sm rounded-lg border border-gray-300 p-2 focus:ring-2 focus:ring-[#0339A6] focus:border-transparent outline-none text-gray-800"
-                  />
+                    className="w-full text-sm rounded-lg border border-gray-300 p-2 focus:ring-2 focus:ring-[#0339A6] focus:border-transparent outline-none text-gray-800 bg-white"
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="Agenor">Agenor</option>
+                    <option value="Carla">Carla</option>
+                    <option value="Miller">Miller</option>
+                    <option value="Outro">Outro Departamento...</option>
+                  </select>
                 </div>
 
-                {/* Helper Person */}
+                {/* Helper Person Select */}
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
                     <HelpCircle className="h-3.5 w-3.5 text-gray-400" /> Quem ajudou a resolver?
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={helperPerson}
                     onChange={(e) => setHelperPerson(e.target.value)}
-                    placeholder="Ex: Rafael, Bob, Charlene"
-                    className="w-full text-sm rounded-lg border border-gray-300 p-2 focus:ring-2 focus:ring-[#0339A6] focus:border-transparent outline-none text-gray-800"
-                  />
+                    className="w-full text-sm rounded-lg border border-gray-300 p-2 focus:ring-2 focus:ring-[#0339A6] focus:border-transparent outline-none text-gray-800 bg-white"
+                  >
+                    <option value="">Ninguém</option>
+                    <option value="Agenor">Agenor</option>
+                    <option value="Carla">Carla</option>
+                    <option value="Miller">Miller</option>
+                    <option value="Outro">Outro Departamento...</option>
+                  </select>
                 </div>
               </div>
 
@@ -245,7 +242,7 @@ export const ActiveModal: React.FC<ActiveModalProps> = ({
           </form>
         )}
 
-        {/* Type: CONGRATULATIONS ON COMPLETION */}
+        {/* CONGRATULATIONS ON COMPLETION */}
         {type === 'congratulations' && (
           <div className="text-center p-8">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100 mb-4 text-[#0339A6]">

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Execution, Activity } from '../types';
 import { 
-  Play, Pause, RotateCcw, Check, Copy, Folder, FileCode, HelpCircle, 
-  ChevronRight, AlertTriangle, Info, Clock, CheckSquare, Trash2
+  Play, Pause, RotateCcw, Check, Copy, FileCode, HelpCircle, 
+  ChevronRight, AlertTriangle, Info, Clock, CheckSquare, Trash2, Image as ImageIcon
 } from 'lucide-react';
 
 interface ActivityDetailProps {
@@ -27,7 +27,6 @@ export const ActivityDetail: React.FC<ActivityDetailProps> = ({
   onCompleteExecution,
   onUpdateExecutionNotes,
   onClose,
-  isRunningGlobal,
   activeExecutionId
 }) => {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -35,19 +34,15 @@ export const ActivityDetail: React.FC<ActivityDetailProps> = ({
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Synchronize internal note state when execution changes
   useEffect(() => {
     setNotes(execution.notes || '');
   }, [execution.notes, execution.id]);
 
-  // Determine elapsed seconds
-  const isRunningThis = activeExecutionId === execution.id;
+  const isRunningThis = execution.status === 'EM_EXECUCAO';
   const isCompleted = execution.status === 'CONCLUIDO';
 
-  // Calculate elapsed time when component is mounted or running state changes
   useEffect(() => {
     if (isRunningThis) {
-      // Calculate from startedAt
       const calculateElapsed = () => {
         if (!execution.startedAt) return 0;
         const start = new Date(execution.startedAt).getTime();
@@ -74,7 +69,6 @@ export const ActivityDetail: React.FC<ActivityDetailProps> = ({
     };
   }, [isRunningThis, execution.startedAt, execution.durationSeconds, execution.id]);
 
-  // Save notes locally when they change
   const handleNotesChange = (val: string) => {
     setNotes(val);
     onUpdateExecutionNotes(execution.id, val);
@@ -86,7 +80,6 @@ export const ActivityDetail: React.FC<ActivityDetailProps> = ({
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  // Convert seconds to HH:MM:SS
   const formatTime = (totalSeconds: number) => {
     const hrs = Math.floor(totalSeconds / 3600);
     const mins = Math.floor((totalSeconds % 3600) / 60);
@@ -147,13 +140,8 @@ export const ActivityDetail: React.FC<ActivityDetailProps> = ({
               {!isCompleted && !isRunningThis && (
                 <button
                   onClick={() => onStartExecution(execution.id)}
-                  disabled={isRunningGlobal && !isRunningThis}
-                  className={`px-4 py-2 text-xs font-bold rounded-lg transition shadow-md flex items-center gap-1 ${
-                    isRunningGlobal && !isRunningThis
-                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-                      : 'bg-green-600 hover:bg-green-700 text-white'
-                  }`}
-                  title={isRunningGlobal ? 'Já existe um cronômetro ativo em outra tarefa!' : 'Iniciar cronômetro'}
+                  className="px-4 py-2 text-xs font-bold rounded-lg transition shadow-md flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white"
+                  title="Iniciar cronômetro"
                 >
                   <Play className="h-3.5 w-3.5" /> Iniciar
                 </button>
@@ -287,18 +275,37 @@ export const ActivityDetail: React.FC<ActivityDetailProps> = ({
           </div>
         )}
 
-        {/* SECTION: EXECUTION NOTES */}
-        <div className="space-y-2 pt-2">
-          <label className="block text-xs uppercase font-extrabold text-gray-400 tracking-wider">
-            Observações / Logs desta Execução
-          </label>
-          <textarea
-            value={notes}
-            onChange={(e) => handleNotesChange(e.target.value)}
-            placeholder="Registre ocorrências, atrasos ou avisos operacionais aqui..."
-            rows={3}
-            className="w-full text-sm border border-gray-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-[#0339A6] focus:border-transparent text-gray-800"
-          />
+        {/* SECTION: EXECUTION NOTES AND IMAGES */}
+        <div className="space-y-3 pt-2 border-t border-gray-100">
+          <div>
+            <label className="block text-xs uppercase font-extrabold text-gray-400 tracking-wider mb-2">
+              Observações / Logs desta Execução
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => handleNotesChange(e.target.value)}
+              placeholder="Registre ocorrências, atrasos ou avisos operacionais aqui..."
+              rows={3}
+              className="w-full text-sm border border-gray-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-[#0339A6] focus:border-transparent text-gray-800"
+            />
+          </div>
+
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <label className="flex items-center gap-1.5 text-xs font-bold text-[#0339A6] uppercase tracking-wider mb-2">
+              <ImageIcon className="h-4 w-4" /> Anexar Evidências (Opcional)
+            </label>
+            <input 
+              type="file" 
+              accept="image/*" 
+              multiple 
+              className="block w-full text-xs text-gray-500
+                file:mr-4 file:py-1.5 file:px-4
+                file:rounded-lg file:border-0
+                file:text-xs file:font-semibold
+                file:bg-[#0339A6] file:text-white
+                hover:file:bg-[#122A44] transition cursor-pointer"
+            />
+          </div>
         </div>
 
       </div>

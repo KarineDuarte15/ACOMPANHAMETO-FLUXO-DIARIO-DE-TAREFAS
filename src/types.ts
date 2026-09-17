@@ -4,6 +4,7 @@ export type ActivityPriority = 'high' | 'medium' | 'low';
 export interface ActivityPath {
   label: string;
   path: string;
+  images?: string[];
 }
 
 export interface Activity {
@@ -19,6 +20,7 @@ export interface Activity {
   contingency: string;
   priority: ActivityPriority;
   responsible: string;
+  images?: string[];
   estimatedTime?: string; // in minutes, e.g. "15 min"
 }
 
@@ -44,6 +46,7 @@ export interface Execution {
   informedPerson?: string;
   helperPerson?: string;
   notes?: string;
+  images?: string[];
 }
 
 export interface HistoryDay {

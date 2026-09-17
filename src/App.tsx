@@ -16,6 +16,7 @@ import { DailyReport } from './components/DailyReport';
 import { HistoryView } from './components/HistoryView';
 import { ConfigPanel } from './components/ConfigPanel';
 import { SchedulerAlerts } from './components/SchedulerAlerts';
+import { NetworkPaths } from './components/NetworkPaths'; // <-- Aba de Caminhos Adicionada
 
 // Icon imports
 import { 
@@ -31,6 +32,7 @@ export default function App() {
   // Navigation
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [isFocoActive, setIsFocoActive] = useState(false);
+  const [activePause, setActivePause] = useState<string | null>(null);
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
 
   // Modal / Dialogue States
@@ -131,15 +133,13 @@ export default function App() {
     return routineActivities.find(a => a.id === nextUpcomingExecution.activityId) || null;
   }, [nextUpcomingExecution]);
 
-  // TIMER / CRONÔMETRO EVENTS
+  // TIMER / CRONÔMETRO EVENTS (CORRIGIDOS COM O AS EXECUTION)
   const startExecution = (execId: string) => {
     const nowStr = new Date().toISOString();
     
     setAppState(prev => {
-      // Find current execution
       const list = prev.executions.map(e => {
         if (e.id === execId) {
-          // Calculate if we are starting with an anomaly / delay
           const [schedHour, schedMin] = e.scheduledTime.split(':').map(Number);
           const schedDate = new Date();
           schedDate.setHours(schedHour, schedMin, 0, 0);
@@ -151,7 +151,6 @@ export default function App() {
           let statusStr = e.status;
           let delaySecondsValue = e.delaySeconds;
 
-          // If delayed more than 5 minutes (300s) and config is enabled, mark delayed
           if (delaySecs > 300) {
             statusStr = 'ATRASADO';
             delaySecondsValue = delaySecs;
@@ -161,20 +160,15 @@ export default function App() {
             ...e,
             status: 'EM_EXECUCAO',
             startedAt: nowStr,
-            delaySeconds: delaySecondsValue > 0 ? delaySecondsValue : undefined
-          };
+            delaySeconds: (delaySecondsValue ?? 0) > 0 ? delaySecondsValue : undefined
+          } as Execution;
         }
         return e;
       });
 
-      return {
-        ...prev,
-        executions: list,
-        currentExecutionId: execId
-      };
+      return { ...prev, executions: list, currentExecutionId: execId };
     });
 
-    // Automatically set focus screen if it wasn't opened
     setSelectedExecutionId(execId);
   };
 
@@ -182,7 +176,6 @@ export default function App() {
     setAppState(prev => {
       const list = prev.executions.map(e => {
         if (e.id === execId) {
-          // Calculate duration accumulated so far
           let accumulatedSecs = e.durationSeconds || 0;
           if (e.startedAt) {
             const start = new Date(e.startedAt).getTime();
@@ -193,18 +186,14 @@ export default function App() {
           return {
             ...e,
             status: 'PENDENTE',
-            startedAt: undefined, // pause clears active running state
+            startedAt: undefined,
             durationSeconds: accumulatedSecs > 0 ? accumulatedSecs : undefined
-          };
+          } as Execution;
         }
         return e;
       });
 
-      return {
-        ...prev,
-        executions: list,
-        currentExecutionId: null
-      };
+      return { ...prev, executions: list, currentExecutionId: null };
     });
   };
 
@@ -218,7 +207,7 @@ export default function App() {
             date: e.date,
             scheduledTime: e.scheduledTime,
             status: 'PENDENTE'
-          };
+          } as Execution;
         }
         return e;
       });
@@ -237,7 +226,6 @@ export default function App() {
 
     if (!exec || !act) return;
 
-    // Check if there was an active delay
     const [schedHour, schedMin] = exec.scheduledTime.split(':').map(Number);
     const schedDate = new Date();
     schedDate.setHours(schedHour, schedMin, 0, 0);
@@ -246,10 +234,9 @@ export default function App() {
     const delayMs = actualEnd.getTime() - schedDate.getTime();
     const delaySecs = delayMs > 0 ? Math.floor(delayMs / 1000) : 0;
 
-    const isAtrasado = delaySecs > 300; // delay is more than 5 minutes
+    const isAtrasado = delaySecs > 300; 
 
     if (isAtrasado && config.enableDelayAlerts && !exec.delayReason) {
-      // Trigger delay prompt modal before final confirmation!
       setTempCompletedExecId(execId);
       setTempElapsed(elapsedSeconds);
       setModalActivity(act);
@@ -263,7 +250,6 @@ export default function App() {
       setModalExecution(enrichedExec);
       setModalType('delay_prompt');
     } else {
-      // Complete directly
       finalizeExecutionSave(execId, elapsedSeconds, delaySecs);
     }
   };
@@ -295,19 +281,14 @@ export default function App() {
               : e.notes,
             informedPerson: delayDetails?.informed || e.informedPerson,
             helperPerson: delayDetails?.helper || e.helperPerson
-          };
+          } as Execution;
         }
         return e;
       });
 
-      return {
-        ...prev,
-        executions: list,
-        currentExecutionId: null
-      };
+      return { ...prev, executions: list, currentExecutionId: null };
     });
 
-    // Load congratulation pop-up
     const finalizedExec: Execution = {
       ...exec,
       status: 'CONCLUIDO',
@@ -323,7 +304,6 @@ export default function App() {
     setModalExecution(finalizedExec);
     setModalType('congratulations');
 
-    // Trigger Integrations if enabled in Config
     if (config.outlookEnabled) {
       const { subject, body } = outlookService.buildActivityEmail(finalizedExec, act);
       outlookService.sendEmail(config.email, subject, body, config.outlookEnabled);
@@ -341,11 +321,7 @@ export default function App() {
     helper: string;
   }) => {
     if (!tempCompletedExecId) return;
-    
-    // Finalize
     finalizeExecutionSave(tempCompletedExecId, tempElapsed, modalExecution?.delaySeconds || 0, data);
-    
-    // Clear temp states
     setTempCompletedExecId(null);
     setTempElapsed(0);
   };
@@ -372,7 +348,6 @@ export default function App() {
       setAppState(prev => {
         const list = prev.executions.map(e => {
           if (e.id === modalExecution.id) {
-            // Postpone: push scheduledTime minutes ahead
             const [h, m] = e.scheduledTime.split(':').map(Number);
             const d = new Date();
             d.setHours(h, m + minutes, 0, 0);
@@ -380,7 +355,7 @@ export default function App() {
             return {
               ...e,
               scheduledTime: newTime
-            };
+            } as Execution;
           }
           return e;
         });
@@ -394,7 +369,7 @@ export default function App() {
     setModalType(null);
     if (nextSpotlightExecution) {
       setSelectedExecutionId(nextSpotlightExecution.id);
-      setIsFocoActive(true); // jump back into focuser
+      setIsFocoActive(true); 
     }
   };
 
@@ -453,6 +428,7 @@ export default function App() {
         soundEnabled={config.soundEnabled}
         onTriggerAlert={handleSchedulerAlertTrigger}
         alertOffsetMinutes={config.alertOffsetMinutes}
+        isPaused={isFocoActive} 
       />
 
       {/* Main Corporate Header Navbar */}
@@ -463,6 +439,8 @@ export default function App() {
         toggleSound={() => handleSaveConfig({ ...config, soundEnabled: !config.soundEnabled })}
         isFocoActive={isFocoActive}
         setIsFocoActive={setIsFocoActive}
+        activePause={activePause}
+        setActivePause={setActivePause}
       />
 
       {/* MODAL POPUPS CONTROLLER */}
@@ -491,7 +469,7 @@ export default function App() {
           onCompleteExecution={completeExecution}
           onUpdateExecutionNotes={(id, val) => {
             setAppState(prev => {
-              const list = prev.executions.map(e => e.id === id ? { ...e, notes: val } : e);
+              const list = prev.executions.map(e => e.id === id ? { ...e, notes: val } as Execution : e);
               return { ...prev, executions: list };
             });
           }}
@@ -543,7 +521,6 @@ export default function App() {
               {/* SPOTLIGHT: DEVO FAZER AGORA? */}
               {nextSpotlightExecution && nextSpotlightActivity && (
                 <div className="bg-gradient-to-r from-[#0339A6] to-[#122A44] rounded-xl shadow-lg border border-blue-900/40 p-5 md:p-6 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative overflow-hidden">
-                  {/* Glowing dynamic badge */}
                   <span className="absolute -right-8 -bottom-8 bg-[#F21D2F] opacity-10 h-32 w-32 rounded-full pointer-events-none" />
                   
                   <div className="space-y-1.5 flex-1">
@@ -577,7 +554,6 @@ export default function App() {
                     <button
                       onClick={() => {
                         setSelectedExecutionId(nextSpotlightExecution.id);
-                        // stay on dashboard but open detail panel
                       }}
                       className="w-full md:w-auto px-4 py-3 font-bold text-xs text-white bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg transition"
                     >
@@ -615,7 +591,7 @@ export default function App() {
                       onCompleteExecution={completeExecution}
                       onUpdateExecutionNotes={(id, notes) => {
                         setAppState(prev => {
-                          const list = prev.executions.map(e => e.id === id ? { ...e, notes } : e);
+                          const list = prev.executions.map(e => e.id === id ? { ...e, notes } as Execution : e);
                           return { ...prev, executions: list };
                         });
                       }}
@@ -651,10 +627,17 @@ export default function App() {
                 activities={routineActivities}
                 onSelectExecution={(exec) => {
                   setSelectedExecutionId(exec.id);
-                  setCurrentTab('dashboard'); // Jump to dashboard to see active panel
+                  setCurrentTab('dashboard'); 
                 }}
                 currentExecutionId={selectedExecutionId}
               />
+            </div>
+          )}
+
+          {/* TAB: DIRETÓRIOS / CAMINHOS DE REDE */}
+          {currentTab === 'diretorios' && (
+            <div className="animate-fade-in">
+              <NetworkPaths activities={routineActivities} />
             </div>
           )}
 

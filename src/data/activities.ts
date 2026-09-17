@@ -131,10 +131,11 @@ export const routineActivities: Activity[] = [
     id: 'download-t22j2',
     name: 'Download T22J2',
     category: 'diaria',
-    schedule: ['08:45'],
+    schedule: ['10:00'],
     recurrence: 'Diariamente (Manhã)',
-    objective: 'Iniciar download das bases T22J2 para o mês atual, seguinte e subsequente.',
+    objective: 'Iniciar download das bases T22J2 (mês atual, seguinte e subsequente) APÓS o Agenor atualizar as bases.',
     instructions: [
+      'Confirmar se o Agenor já atualizou as bases no sistema.',
       'Abrir o sistema corporativo e exportar as bases T22J2 para as 5 empresas.',
       'Copiar e salvar os arquivos exportados na pasta anual de 2026.'
     ],
@@ -144,7 +145,7 @@ export const routineActivities: Activity[] = [
     scripts: [],
     contingency: 'Caso o download de lote falhar, exportar individualmente cada uma das 5 empresas pelo sistema.',
     priority: 'medium',
-    responsible: 'Karine',
+    responsible: 'Karine / Agenor',
     estimatedTime: '25'
   },
   {
@@ -189,6 +190,23 @@ export const routineActivities: Activity[] = [
     priority: 'high',
     responsible: 'Karine',
     estimatedTime: '15'
+  },
+  {
+    id: 'pausa-almoco',
+    name: 'Pausa para Almoço',
+    category: 'outras',
+    schedule: ['12:00'],
+    recurrence: 'Diariamente',
+    objective: 'Horário reservado para almoço e descanso.',
+    instructions: [
+      'Pausa operacional. Alertas e cronômetros de atividades regulares não devem ser iniciados neste período.'
+    ],
+    paths: [],
+    scripts: [],
+    contingency: 'Não aplicável.',
+    priority: 'low',
+    responsible: 'Karine',
+    estimatedTime: '60'
   },
   {
     id: 'tarde-livre',
@@ -326,35 +344,14 @@ export const routineActivities: Activity[] = [
     estimatedTime: '15'
   },
   {
-    id: 'rede-cred',
-    name: 'Bases REDE CRED',
-    category: 'outras',
-    schedule: ['14:00'],
-    recurrence: 'Diariamente (Tarde)',
-    objective: 'Atualizar manualmente as planilhas da Rede Cred.',
-    instructions: [
-      'Garantir atualização manual das seguintes bases:',
-      '1. BASE_ALERTA_CRED',
-      '2. BASE_ALERTA_CRED_DIA_A_DIA',
-      '3. BASE_ALERTA_CRED(DESVIOS)',
-      '4. BASE_ALERTA_CRED(PONTOS)'
-    ],
-    paths: [],
-    scripts: [],
-    contingency: 'Não definido na rotina original.',
-    priority: 'medium',
-    responsible: 'Karine',
-    estimatedTime: '30'
-  },
-  {
     id: 't9016-mensal',
     name: 'Baixar Bases T9016 Mensal',
     category: 'outras',
     schedule: ['08:05'],
-    recurrence: 'Segunda-feira (manhã)',
-    objective: 'Baixar as bases T9016 mensais de todas as empresas para iniciar a atualização de médicos novos.',
+    recurrence: '1º e 5º dia útil',
+    objective: 'Baixar as bases T9016 mensais de todas as empresas (SEMPRE PEGA O MÊS ANTERIOR) para iniciar a atualização de médicos novos.',
     instructions: [
-      'Acessar o sistema, baixar as bases T9016 de todas as empresas.',
+      'Acessar o sistema, baixar as bases T9016 do mês ANTERIOR de todas as empresas.',
       'Salvar na pasta correspondente do ano de 2026.'
     ],
     paths: [
@@ -362,28 +359,6 @@ export const routineActivities: Activity[] = [
     ],
     scripts: [],
     contingency: 'Não definido na rotina original.',
-    priority: 'medium',
-    responsible: 'Karine',
-    estimatedTime: '20'
-  },
-  {
-    id: 'bi-medicos-novos',
-    name: 'BI Médicos Novos',
-    category: 'outras',
-    schedule: ['08:35'],
-    recurrence: 'Segunda-feira (manhã)',
-    objective: 'Processar e publicar o BI de Médicos Novos.',
-    instructions: [
-      'Garantir que as planilhas T9016 mensais de todas as empresas já estejam baixadas.',
-      'Rodar historico_loader.py (reprocessa e substitui o Parquet do mês atual; preserva históricos anteriores).',
-      'Rodar transform.py.',
-      'Atualizar o Power BI e publicar.'
-    ],
-    paths: [
-      { label: 'Fluxo Python Médicos Novos', path: '\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\1 - RELATORIOS\\11 - MEDICOS NOVOS\\2 - FLUXO PHYTON MEDICOS NOVOS' }
-    ],
-    scripts: ['historico_loader.py', 'transform.py'],
-    contingency: 'Depurar o carregador e verificar a estrutura do Parquet se ocorrer erro de chaves.',
     priority: 'medium',
     responsible: 'Karine',
     estimatedTime: '20'
