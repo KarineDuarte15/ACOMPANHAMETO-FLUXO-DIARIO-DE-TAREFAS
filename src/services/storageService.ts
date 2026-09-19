@@ -1,4 +1,4 @@
-import { AppState, Execution, UserConfig, HistoryDay, ExecutionStatus } from '../types';
+import { AppState, Execution, UserConfig, HistoryDay, ExecutionStatus, Directory } from '../types';
 import { routineActivities } from '../data/activities';
 
 const STORAGE_KEY = 'rotina_inteligente_state_v1';
@@ -19,7 +19,6 @@ const defaultConfig: UserConfig = {
 
 export const storageService = {
   getTodayDateString(): string {
-    // Return date in local timezone YYYY-MM-DD
     const d = new Date();
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -27,22 +26,105 @@ export const storageService = {
     return `${year}-${month}-${day}`;
   },
 
+  isBusinessDay(date: Date): boolean {
+    const day = date.getDay();
+    return day !== 0 && day !== 6;
+  },
+
+  getBusinessDayOfMonth(date: Date): number {
+    const tempDate = new Date(date.getTime());
+    tempDate.setDate(1);
+    let businessDayCount = 0;
+    const targetDay = date.getDate();
+    
+    for (let d = 1; d <= targetDay; d++) {
+      tempDate.setDate(d);
+      if (this.isBusinessDay(tempDate)) {
+        businessDayCount++;
+      }
+    }
+    return businessDayCount;
+  },
+
+  isLastDayOfMonth(date: Date): boolean {
+    const tempDate = new Date(date.getTime());
+    const currentMonth = tempDate.getMonth();
+    tempDate.setDate(tempDate.getDate() + 1);
+    return tempDate.getMonth() !== currentMonth;
+  },
+
   generateDefaultExecutions(dateStr: string): Execution[] {
     const executions: Execution[] = [];
+    const dateObj = new Date(dateStr + 'T12:00:00');
+    const dayOfMonth = dateObj.getDate();
+    const dayOfWeek = dateObj.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    
+    const nthBusinessDay = this.getBusinessDayOfMonth(dateObj);
+    const isLastDay = this.isLastDayOfMonth(dateObj);
     
     routineActivities.forEach(activity => {
-      activity.schedule.forEach(time => {
-        executions.push({
-          id: `${activity.id}-${time}`,
-          activityId: activity.id,
-          date: dateStr,
-          scheduledTime: time,
-          status: 'PENDENTE'
+      // 1. Pular atividades inativas ou arquivadas
+      if (!activity.ativo || activity.visibilidade === 'ARQUIVO') {
+        return;
+      }
+      
+      let isApplicable = false;
+      
+      // 2. Avaliar aplicabilidade operacional dinâmica
+      if (activity.frequencia === 'DIARIA') {
+        // Atividades diárias rodam de segunda a sexta-feira
+        if (!isWeekend) {
+          isApplicable = true;
+        }
+      } else if (activity.frequencia === 'SEMANAL') {
+        // Mapear dias da semana
+        const daysMap: Record<string, number> = {
+          'Segunda': 1, 'Terça': 2, 'Quarta': 3, 'Quinta': 4, 'Sexta': 5
+        };
+        const activeWeekdays = activity.diasSemana.map(d => daysMap[d]).filter(v => v !== undefined);
+        if (activeWeekdays.includes(dayOfWeek)) {
+          isApplicable = true;
+        }
+      } else if (activity.frequencia === 'QUINZENAL') {
+        // Regra MEDPREV/VS: Apenas se for exatamente dia 15 ou 30 do mês
+        if (dayOfMonth === 15 || dayOfMonth === 30) {
+          isApplicable = true;
+        }
+      } else if (activity.frequencia === 'MENSAL') {
+        // Lista Mensal para Analistas: Apenas no dia 15
+        if (dayOfMonth === 15) {
+          isApplicable = true;
+        }
+      } else if (activity.frequencia === 'MARCO_MENSAL') {
+        // Marcos específicos de dias úteis
+        if (activity.id.includes('primeiro') && nthBusinessDay === 1) isApplicable = true;
+        if (activity.id.includes('quinto') && nthBusinessDay === 5) isApplicable = true;
+        if (activity.id.includes('decimo') && nthBusinessDay === 10) isApplicable = true;
+      } else if (activity.frequencia === 'SOB_DEMANDA') {
+        // Atividades sob demanda não aparecem automaticamente na rotina diária padrão
+        isApplicable = false;
+      }
+
+      // Tratamento especial para virada de mês (ex: histórico telesaúde)
+      if (isLastDay && activity.id === 'bi-alerta-vagas-telesaude-virada') {
+        isApplicable = true;
+      }
+      
+      if (isApplicable) {
+        activity.horario.forEach(time => {
+          executions.push({
+            id: `${activity.id}-${time}`,
+            activityId: activity.id,
+            date: dateStr,
+            scheduledTime: time,
+            status: 'PENDENTE'
+          });
         });
-      });
+      }
     });
 
-    // Sort executions by scheduled time chronologically
+    // Ordenação cronológica por horário de agendamento
     return executions.sort((a, b) => {
       return a.scheduledTime.localeCompare(b.scheduledTime);
     });
@@ -55,14 +137,11 @@ export const storageService = {
       if (serialized) {
         const state: AppState = JSON.parse(serialized);
         
-        // Ensure config is complete
         state.config = { ...defaultConfig, ...state.config };
         
-        // Ensure there are executions for today
         const hasTodayExecutions = state.executions && state.executions.length > 0 && state.executions[0].date === todayStr;
         
         if (!hasTodayExecutions) {
-          // If we had prior executions, save them to history before resetting for the new day
           if (state.executions && state.executions.length > 0) {
             const oldDate = state.executions[0].date;
             const alreadyInHistory = state.history.some(h => h.date === oldDate);
@@ -74,11 +153,10 @@ export const storageService = {
                 executions: [...state.executions],
                 summary
               };
-              state.history.unshift(historyDay); // Prepend to history
+              state.history.unshift(historyDay);
             }
           }
 
-          // Generate new executions for today
           state.executions = this.generateDefaultExecutions(todayStr);
           state.currentExecutionId = null;
           this.saveState(state);
@@ -90,12 +168,11 @@ export const storageService = {
       console.error('Error loading state from localStorage:', e);
     }
 
-    // Default first-run state
     const todayExecutions = this.generateDefaultExecutions(todayStr);
     const newState: AppState = {
       executions: todayExecutions,
       currentExecutionId: null,
-      history: this.generateDemoHistory(), // Provide some historical data for comparison
+      history: this.generateDemoHistory(),
       config: defaultConfig
     };
     this.saveState(newState);
@@ -115,7 +192,6 @@ export const storageService = {
     const completedExecs = executions.filter(e => e.status === 'CONCLUIDO');
     const completed = completedExecs.length;
     
-    // Delayed are ones where delayedSeconds > 0 or status is ATRASADO
     const delayed = executions.filter(e => e.status === 'ATRASADO' || (e.delaySeconds && e.delaySeconds > 0)).length;
     const notCompleted = totalPlanned - completed;
     
@@ -126,7 +202,6 @@ export const storageService = {
 
     const averageDurationSeconds = completed > 0 ? Math.round(totalDurationSeconds / completed) : 0;
     
-    // ÍNDICE DE EXECUÇÃO: Combination of completion rate (70%) and punctuality (30%)
     const completionRate = totalPlanned > 0 ? (completed / totalPlanned) * 100 : 0;
     const punctualityRate = completed > 0 
       ? ((completed - executions.filter(e => e.status === 'CONCLUIDO' && e.delaySeconds && e.delaySeconds > 0).length) / completed) * 100 
@@ -163,7 +238,6 @@ export const storageService = {
   },
 
   generateDemoHistory(): HistoryDay[] {
-    // Generate realistic historical data for yesterday and past days for demo metrics and comparison
     const history: HistoryDay[] = [];
     const dates = [];
     const d = new Date();
@@ -178,33 +252,26 @@ export const storageService = {
     }
 
     dates.forEach((dateStr, idx) => {
-      // Simulate completions: 80% to 100%
       const rawExecs = this.generateDefaultExecutions(dateStr);
       const executions = rawExecs.map((exec, eidx) => {
         const statusRand = Math.random();
         
-        // Create realistic durations and start times
         let status: ExecutionStatus = 'CONCLUIDO';
-        let durationSeconds = Math.round(300 + Math.random() * 600); // 5-15 mins
+        let durationSeconds = Math.round(300 + Math.random() * 600);
         let startedAt: string | undefined;
         let completedAt: string | undefined;
         let delaySeconds = 0;
         let delayReason = '';
-        let helperPerson = '';
-        let informedPerson = '';
 
         if (statusRand < 0.08) {
           status = 'NAO_REALIZADO';
           delayReason = 'Sistema indisponível';
-          informedPerson = 'Rafael Fernandes';
         } else {
-          // Calculate realistic timestamps
           const [hour, min] = exec.scheduledTime.split(':').map(Number);
           const schedDate = new Date();
           schedDate.setHours(hour, min, 0, 0);
           
-          // Random offset (either early, exact, or delayed)
-          const offsetMin = Math.round((Math.random() - 0.3) * 12); // mostly on-time or slight delay
+          const offsetMin = Math.round((Math.random() - 0.3) * 12);
           const startDateObj = new Date(schedDate.getTime() + offsetMin * 60 * 1000);
           const endDateObj = new Date(startDateObj.getTime() + durationSeconds * 1000);
           
@@ -224,9 +291,7 @@ export const storageService = {
           completedAt,
           durationSeconds: status === 'CONCLUIDO' ? durationSeconds : undefined,
           delaySeconds: delaySeconds > 0 ? delaySeconds : undefined,
-          delayReason: delayReason || undefined,
-          informedPerson: informedPerson || undefined,
-          helperPerson: helperPerson || undefined
+          delayReason: delayReason || undefined
         };
       });
 
@@ -239,5 +304,25 @@ export const storageService = {
     });
 
     return history;
+  },
+
+  getAllDirectories(): Directory[] {
+    const list: Directory[] = [];
+    routineActivities.forEach(act => {
+      act.diretorios.forEach((pathStr, index) => {
+        list.push({
+          id: `${act.id}-dir-${index}`,
+          nome: pathStr.split('\\').pop() || pathStr.split('/').pop() || 'Caminho de Rede',
+          caminho: pathStr,
+          atividadeId: act.id,
+          biRelacionado: act.biRelacionado,
+          prioridade: act.prioridade,
+          tipo: act.categoria,
+          uso: act.objetivo,
+          contingencia: act.tipoExecucao === 'CONTINGENCIA'
+        });
+      });
+    });
+    return list;
   }
 };

@@ -16,7 +16,13 @@ import { DailyReport } from './components/DailyReport';
 import { HistoryView } from './components/HistoryView';
 import { ConfigPanel } from './components/ConfigPanel';
 import { SchedulerAlerts } from './components/SchedulerAlerts';
-import { NetworkPaths } from './components/NetworkPaths'; // <-- Aba de Caminhos Adicionada
+
+// Novas Abas Modulares
+import { BisTable } from './components/BisTable';
+import { DirectoriesPanel } from './components/DirectoriesPanel';
+import { MonthlyMilestones } from './components/MonthlyMilestones';
+import { CycleRecurrents } from './components/CycleRecurrents';
+import { BiSummary } from './components/BiSummary';
 
 // Icon imports
 import { 
@@ -32,7 +38,6 @@ export default function App() {
   // Navigation
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [isFocoActive, setIsFocoActive] = useState(false);
-  const [activePause, setActivePause] = useState<string | null>(null);
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
 
   // Modal / Dialogue States
@@ -45,10 +50,28 @@ export default function App() {
   // Integration feedback messages
   const [teamsStatus, setTeamsStatus] = useState<string>('Disponível');
 
+  // Read-only / Viewer mode for managers
+  const [isReadOnly, setIsReadOnly] = useState<boolean>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get('view') || params.get('mode');
+    return view === 'gestor' || view === 'viewer' || view === 'readonly';
+  });
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleCopyGestorLink = () => {
+    const gestorUrl = `${window.location.origin}${window.location.pathname}?view=gestor`;
+    navigator.clipboard.writeText(gestorUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 3000);
+    alert("Link de visualização para Gestores copiado! Envie este link para que eles acompanhem seu progresso em tempo real sem poder modificar nada nas suas rotinas.");
+  };
+
   // Sync state to LocalStorage when changed
   useEffect(() => {
-    storageService.saveState(appState);
-  }, [appState]);
+    if (!isReadOnly) {
+      storageService.saveState(appState);
+    }
+  }, [appState, isReadOnly]);
 
   // Keep digital clock ticking
   useEffect(() => {
@@ -133,13 +156,19 @@ export default function App() {
     return routineActivities.find(a => a.id === nextUpcomingExecution.activityId) || null;
   }, [nextUpcomingExecution]);
 
-  // TIMER / CRONÔMETRO EVENTS (CORRIGIDOS COM O AS EXECUTION)
+  // TIMER / CRONÔMETRO EVENTS
   const startExecution = (execId: string) => {
+    if (isReadOnly) {
+      alert("Acesso Negado: Este cockpit está em modo de Apenas Leitura para gestores. Modificações não são permitidas.");
+      return;
+    }
     const nowStr = new Date().toISOString();
     
     setAppState(prev => {
+      // Find current execution
       const list = prev.executions.map(e => {
         if (e.id === execId) {
+          // Calculate if we are starting with an anomaly / delay
           const [schedHour, schedMin] = e.scheduledTime.split(':').map(Number);
           const schedDate = new Date();
           schedDate.setHours(schedHour, schedMin, 0, 0);
@@ -151,6 +180,7 @@ export default function App() {
           let statusStr = e.status;
           let delaySecondsValue = e.delaySeconds;
 
+          // If delayed more than 5 minutes (300s) and config is enabled, mark delayed
           if (delaySecs > 300) {
             statusStr = 'ATRASADO';
             delaySecondsValue = delaySecs;
@@ -160,22 +190,32 @@ export default function App() {
             ...e,
             status: 'EM_EXECUCAO',
             startedAt: nowStr,
-            delaySeconds: (delaySecondsValue ?? 0) > 0 ? delaySecondsValue : undefined
-          } as Execution;
+            delaySeconds: delaySecondsValue > 0 ? delaySecondsValue : undefined
+          };
         }
         return e;
       });
 
-      return { ...prev, executions: list, currentExecutionId: execId };
+      return {
+        ...prev,
+        executions: list,
+        currentExecutionId: execId
+      };
     });
 
+    // Automatically set focus screen if it wasn't opened
     setSelectedExecutionId(execId);
   };
 
   const pauseExecution = (execId: string) => {
+    if (isReadOnly) {
+      alert("Acesso Negado: Este cockpit está em modo de Apenas Leitura para gestores. Modificações não são permitidas.");
+      return;
+    }
     setAppState(prev => {
       const list = prev.executions.map(e => {
         if (e.id === execId) {
+          // Calculate duration accumulated so far
           let accumulatedSecs = e.durationSeconds || 0;
           if (e.startedAt) {
             const start = new Date(e.startedAt).getTime();
@@ -186,18 +226,26 @@ export default function App() {
           return {
             ...e,
             status: 'PENDENTE',
-            startedAt: undefined,
+            startedAt: undefined, // pause clears active running state
             durationSeconds: accumulatedSecs > 0 ? accumulatedSecs : undefined
-          } as Execution;
+          };
         }
         return e;
       });
 
-      return { ...prev, executions: list, currentExecutionId: null };
+      return {
+        ...prev,
+        executions: list,
+        currentExecutionId: null
+      };
     });
   };
 
   const resetExecution = (execId: string) => {
+    if (isReadOnly) {
+      alert("Acesso Negado: Este cockpit está em modo de Apenas Leitura para gestores. Modificações não são permitidas.");
+      return;
+    }
     setAppState(prev => {
       const list = prev.executions.map(e => {
         if (e.id === execId) {
@@ -207,7 +255,7 @@ export default function App() {
             date: e.date,
             scheduledTime: e.scheduledTime,
             status: 'PENDENTE'
-          } as Execution;
+          };
         }
         return e;
       });
@@ -220,12 +268,17 @@ export default function App() {
   };
 
   const completeExecution = (execId: string, elapsedSeconds: number) => {
+    if (isReadOnly) {
+      alert("Acesso Negado: Este cockpit está em modo de Apenas Leitura para gestores. Modificações não são permitidas.");
+      return;
+    }
     const nowStr = new Date().toISOString();
     const exec = executions.find(e => e.id === execId);
     const act = routineActivities.find(a => a.id === exec?.activityId);
 
     if (!exec || !act) return;
 
+    // Check if there was an active delay
     const [schedHour, schedMin] = exec.scheduledTime.split(':').map(Number);
     const schedDate = new Date();
     schedDate.setHours(schedHour, schedMin, 0, 0);
@@ -234,9 +287,10 @@ export default function App() {
     const delayMs = actualEnd.getTime() - schedDate.getTime();
     const delaySecs = delayMs > 0 ? Math.floor(delayMs / 1000) : 0;
 
-    const isAtrasado = delaySecs > 300; 
+    const isAtrasado = delaySecs > 300; // delay is more than 5 minutes
 
     if (isAtrasado && config.enableDelayAlerts && !exec.delayReason) {
+      // Trigger delay prompt modal before final confirmation!
       setTempCompletedExecId(execId);
       setTempElapsed(elapsedSeconds);
       setModalActivity(act);
@@ -250,6 +304,7 @@ export default function App() {
       setModalExecution(enrichedExec);
       setModalType('delay_prompt');
     } else {
+      // Complete directly
       finalizeExecutionSave(execId, elapsedSeconds, delaySecs);
     }
   };
@@ -281,14 +336,19 @@ export default function App() {
               : e.notes,
             informedPerson: delayDetails?.informed || e.informedPerson,
             helperPerson: delayDetails?.helper || e.helperPerson
-          } as Execution;
+          };
         }
         return e;
       });
 
-      return { ...prev, executions: list, currentExecutionId: null };
+      return {
+        ...prev,
+        executions: list,
+        currentExecutionId: null
+      };
     });
 
+    // Load congratulation pop-up
     const finalizedExec: Execution = {
       ...exec,
       status: 'CONCLUIDO',
@@ -304,6 +364,7 @@ export default function App() {
     setModalExecution(finalizedExec);
     setModalType('congratulations');
 
+    // Trigger Integrations if enabled in Config
     if (config.outlookEnabled) {
       const { subject, body } = outlookService.buildActivityEmail(finalizedExec, act);
       outlookService.sendEmail(config.email, subject, body, config.outlookEnabled);
@@ -321,7 +382,11 @@ export default function App() {
     helper: string;
   }) => {
     if (!tempCompletedExecId) return;
+    
+    // Finalize
     finalizeExecutionSave(tempCompletedExecId, tempElapsed, modalExecution?.delaySeconds || 0, data);
+    
+    // Clear temp states
     setTempCompletedExecId(null);
     setTempElapsed(0);
   };
@@ -348,6 +413,7 @@ export default function App() {
       setAppState(prev => {
         const list = prev.executions.map(e => {
           if (e.id === modalExecution.id) {
+            // Postpone: push scheduledTime minutes ahead
             const [h, m] = e.scheduledTime.split(':').map(Number);
             const d = new Date();
             d.setHours(h, m + minutes, 0, 0);
@@ -355,7 +421,7 @@ export default function App() {
             return {
               ...e,
               scheduledTime: newTime
-            } as Execution;
+            };
           }
           return e;
         });
@@ -369,12 +435,16 @@ export default function App() {
     setModalType(null);
     if (nextSpotlightExecution) {
       setSelectedExecutionId(nextSpotlightExecution.id);
-      setIsFocoActive(true); 
+      setIsFocoActive(true); // jump back into focuser
     }
   };
 
   // CONFIGURATION SAVE
   const handleSaveConfig = (newConfig: UserConfig) => {
+    if (isReadOnly) {
+      alert("Acesso Negado: Alteração de configuração desabilitada no modo de visualização de gestores.");
+      return;
+    }
     setAppState(prev => ({
       ...prev,
       config: newConfig
@@ -382,6 +452,10 @@ export default function App() {
   };
 
   const handleResetAllData = () => {
+    if (isReadOnly) {
+      alert("Acesso Negado: Limpeza de dados desabilitada no modo de visualização de gestores.");
+      return;
+    }
     const cleared = storageService.resetTodayExecutions();
     setAppState(prev => ({
       ...prev,
@@ -418,8 +492,31 @@ export default function App() {
     }, 1500);
   };
 
+  // FORCE MANUAL EXECUTION CREATION
+  const handleForceCreateExecution = (activityId: string, scheduledTime: string) => {
+    const todayStr = storageService.getTodayDateString();
+    const newExec: Execution = {
+      id: `${activityId}-${scheduledTime}-${Date.now()}`,
+      activityId,
+      date: todayStr,
+      scheduledTime,
+      status: 'PENDENTE'
+    };
+    
+    setAppState(prev => {
+      const exists = prev.executions.some(e => e.activityId === activityId && e.scheduledTime === scheduledTime);
+      if (exists) return prev;
+      
+      const updatedList = [...prev.executions, newExec].sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
+      return {
+        ...prev,
+        executions: updatedList
+      };
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-[#F2F2F2] flex flex-col font-inter">
+    <div className="min-h-screen bg-[#F2F2F2] flex flex-col lg:flex-row font-inter">
       
       {/* Background Active Scheduler (Silent Web Audio chime inside) */}
       <SchedulerAlerts
@@ -428,10 +525,9 @@ export default function App() {
         soundEnabled={config.soundEnabled}
         onTriggerAlert={handleSchedulerAlertTrigger}
         alertOffsetMinutes={config.alertOffsetMinutes}
-        isPaused={isFocoActive} 
       />
 
-      {/* Main Corporate Header Navbar */}
+      {/* Main Corporate Sidebar Navbar */}
       <Navbar
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
@@ -439,254 +535,361 @@ export default function App() {
         toggleSound={() => handleSaveConfig({ ...config, soundEnabled: !config.soundEnabled })}
         isFocoActive={isFocoActive}
         setIsFocoActive={setIsFocoActive}
-        activePause={activePause}
-        setActivePause={setActivePause}
+        isReadOnly={isReadOnly}
       />
 
-      {/* MODAL POPUPS CONTROLLER */}
-      <ActiveModal
-        isOpen={modalType !== null}
-        type={modalType || 'alert'}
-        activity={modalActivity}
-        execution={modalExecution}
-        onClose={() => setModalType(null)}
-        onStartActivity={handleModalStartActivity}
-        onPostponeActivity={handleModalPostponeActivity}
-        onSubmitDelay={handleDelayPromptSubmit}
-        onNextActivity={handleModalNextActivity}
-      />
+      {/* RIGHT WORKSPACE PANELS CONTAINER */}
+      <div className="flex-1 flex flex-col min-w-0">
+        
+        {/* Manager View Mode persistent banner */}
+        {isReadOnly && (
+          <div className="bg-[#0339A6] text-white px-6 py-3.5 flex items-center justify-between border-b border-[#022b80] shadow-md animate-fade-in relative z-20 shrink-0">
+            <div className="flex items-center gap-3">
+              <span className="text-base">👁️</span>
+              <div>
+                <span className="text-xs font-black font-sora uppercase tracking-wider block">
+                  Painel do Gestor · Modo de Visualização Ativo
+                </span>
+                <span className="text-[10px] text-blue-200 block mt-0.5 font-medium">
+                  Acompanhamento em tempo real (Apenas Leitura). A integridade das rotinas operacionais está protegida de edições acidentais.
+                </span>
+              </div>
+            </div>
+            <span className="text-[10px] bg-white/20 border border-white/20 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider font-mono shrink-0">
+              🔒 Modo Seguro
+            </span>
+          </div>
+        )}
 
-      {/* MAIN ROUTER LAYOUT */}
-      {isFocoActive && nextSpotlightExecution && nextSpotlightActivity ? (
-        <FlippedFocuser
-          execution={nextSpotlightExecution}
-          activity={nextSpotlightActivity}
-          nextExecution={nextUpcomingExecution}
-          nextActivity={nextUpcomingActivity}
-          onStartExecution={startExecution}
-          onPauseExecution={pauseExecution}
-          onResetExecution={resetExecution}
-          onCompleteExecution={completeExecution}
-          onUpdateExecutionNotes={(id, val) => {
-            setAppState(prev => {
-              const list = prev.executions.map(e => e.id === id ? { ...e, notes: val } as Execution : e);
-              return { ...prev, executions: list };
-            });
-          }}
-          activeExecutionId={appState.currentExecutionId}
-          setIsFocoActive={setIsFocoActive}
+        {/* MODAL POPUPS CONTROLLER */}
+        <ActiveModal
+          isOpen={modalType !== null}
+          type={modalType || 'alert'}
+          activity={modalActivity}
+          execution={modalExecution}
+          onClose={() => setModalType(null)}
+          onStartActivity={handleModalStartActivity}
+          onPostponeActivity={handleModalPostponeActivity}
+          onSubmitDelay={handleDelayPromptSubmit}
+          onNextActivity={handleModalNextActivity}
         />
-      ) : (
-        <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
-          
-          {/* TAB: DASHBOARD (HOME) */}
-          {currentTab === 'dashboard' && (
-            <div className="space-y-6 animate-fade-in">
-              
-              {/* HERO GREETING BLOCK */}
-              <div className="bg-white rounded-xl shadow border border-gray-100 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden">
-                <div className="absolute right-0 top-0 opacity-10 pointer-events-none transform translate-x-12 -translate-y-4">
-                  <Sparkles size={160} className="text-[#0339A6]" />
-                </div>
+
+        {/* MAIN ROUTER LAYOUT */}
+        {isFocoActive && nextSpotlightExecution && nextSpotlightActivity ? (
+          <FlippedFocuser
+            execution={nextSpotlightExecution}
+            activity={nextSpotlightActivity}
+            nextExecution={nextUpcomingExecution}
+            nextActivity={nextUpcomingActivity}
+            onStartExecution={startExecution}
+            onPauseExecution={pauseExecution}
+            onResetExecution={resetExecution}
+            onCompleteExecution={completeExecution}
+            onUpdateExecutionNotes={(id, val) => {
+              setAppState(prev => {
+                const list = prev.executions.map(e => e.id === id ? { ...e, notes: val } : e);
+                return { ...prev, executions: list };
+              });
+            }}
+            activeExecutionId={appState.currentExecutionId}
+            setIsFocoActive={setIsFocoActive}
+          />
+        ) : (
+          <main className="flex-1 w-full p-4 md:p-6 space-y-6">
+            
+            {/* TAB: DASHBOARD (HOME) */}
+            {currentTab === 'dashboard' && (
+              <div className="space-y-6 animate-fade-in">
                 
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-green-600 bg-green-50 border border-green-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                      🟢 Copiloto Ativo
-                    </span>
-                    <span className="text-xs text-gray-400 font-mono">
-                      {currentTime.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'short' })}
-                    </span>
+                {/* HERO GREETING BLOCK */}
+                <div className="bg-white rounded-xl shadow border border-gray-100 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden">
+                  <div className="absolute right-0 top-0 opacity-10 pointer-events-none transform translate-x-12 -translate-y-4">
+                    <Sparkles size={160} className="text-[#0339A6]" />
                   </div>
-                  <h1 className="font-sora font-black text-2xl text-gray-900 mt-2">
-                    Bom dia, {config.name}! 👋
-                  </h1>
-                  <p className="text-xs text-gray-500 mt-1 max-w-xl">
-                    Seu cockpit inteligente para controle e auditoria da rotina de cargas Alteryx, robôs Python e BIs da Hapvida.
-                  </p>
-                </div>
-
-                {/* System digital clock display */}
-                <div className="bg-gray-50 border border-gray-100 p-3 rounded-xl flex items-center gap-3">
-                  <Clock className="h-6 w-6 text-[#0339A6] animate-pulse" />
-                  <div>
-                    <span className="block text-[10px] text-gray-400 uppercase font-bold tracking-wider leading-none">Hora de Brasília</span>
-                    <span className="font-mono text-xl font-bold text-gray-800 tracking-tight block mt-1">
-                      {currentTime.toLocaleTimeString('pt-BR')}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* SPOTLIGHT: DEVO FAZER AGORA? */}
-              {nextSpotlightExecution && nextSpotlightActivity && (
-                <div className="bg-gradient-to-r from-[#0339A6] to-[#122A44] rounded-xl shadow-lg border border-blue-900/40 p-5 md:p-6 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative overflow-hidden">
-                  <span className="absolute -right-8 -bottom-8 bg-[#F21D2F] opacity-10 h-32 w-32 rounded-full pointer-events-none" />
                   
-                  <div className="space-y-1.5 flex-1">
-                    <span className="text-[10px] uppercase font-black text-[#F2B705] tracking-widest block">Spotlight · Recomendação de Foco</span>
-                    <h2 className="font-sora font-extrabold text-lg flex items-center gap-2">
-                      <span>{nextSpotlightActivity.name}</span>
-                      <span className="text-xs font-mono font-bold bg-[#F21D2F] text-white px-2 py-0.5 rounded">
-                        Previsto: {nextSpotlightExecution.scheduledTime}
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-green-600 bg-green-50 border border-green-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        🟢 Copiloto Ativo
                       </span>
-                    </h2>
-                    <p className="text-xs text-blue-100 line-clamp-1 max-w-2xl font-medium">
-                      {nextSpotlightActivity.objective}
+                      <span className="text-xs text-gray-400 font-mono">
+                        {currentTime.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'short' })}
+                      </span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-2">
+                      <h1 className="font-sora font-black text-2xl text-gray-900 leading-tight">
+                        Bom dia, {config.name}! 👋
+                      </h1>
+                      {!isReadOnly && (
+                        <button
+                          onClick={handleCopyGestorLink}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition duration-200 flex items-center gap-1.5 shadow-sm shrink-0 ${
+                            copiedLink
+                              ? 'bg-green-600 border-green-600 text-white animate-pulse'
+                              : 'bg-white hover:bg-gray-50 border-gray-200 text-gray-700 hover:text-[#0339A6]'
+                          }`}
+                          title="Copiar link especial de visualização em tempo real sem permissão de alteração para seus gestores"
+                        >
+                          <span>🔗 {copiedLink ? 'Link do Gestor Copiado!' : 'Copiar Link para Gestores'}</span>
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1 max-w-xl">
+                      Seu cockpit inteligente para controle e auditoria da rotina de faturamento da retaguarda Hapvida.
                     </p>
-                    <div className="flex flex-wrap gap-2 pt-1 text-[10px] text-blue-200">
-                      <span>Prazo estimado: <b>{nextSpotlightActivity.estimatedTime || '15'} min</b></span>
-                      <span>•</span>
-                      <span>Categoria: <b>{nextSpotlightActivity.category.toUpperCase()}</b></span>
+                  </div>
+
+                  {/* System digital clock display */}
+                  <div className="bg-gray-50 border border-gray-100 p-3 rounded-xl flex items-center gap-3">
+                    <Clock className="h-6 w-6 text-[#0339A6] animate-pulse" />
+                    <div>
+                      <span className="block text-[10px] text-gray-400 uppercase font-bold tracking-wider leading-none">Hora de Brasília</span>
+                      <span className="font-mono text-xl font-bold text-gray-800 tracking-tight block mt-1">
+                        {currentTime.toLocaleTimeString('pt-BR')}
+                      </span>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-3 w-full md:w-auto">
-                    <button
-                      onClick={() => {
-                        setSelectedExecutionId(nextSpotlightExecution.id);
-                        setIsFocoActive(true);
-                      }}
-                      className="w-full md:w-auto px-6 py-3 font-extrabold text-xs text-gray-900 bg-[#F2B705] hover:bg-[#d4a004] rounded-lg transition shadow-md flex items-center justify-center gap-1.5"
-                    >
-                      <Sparkles className="h-4 w-4" /> COMEÇAR NO MODO FOCO
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedExecutionId(nextSpotlightExecution.id);
-                      }}
-                      className="w-full md:w-auto px-4 py-3 font-bold text-xs text-white bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg transition"
-                    >
-                      Ver Passos
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* KEY STATS INDICATORS BAR */}
-              <Indicators executions={executions} activities={routineActivities} />
-
-              {/* CORE DASHBOARD GRID: LEFT TIMELINE / RIGHT INSTRUCTIONS */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                
-                {/* Timeline panel */}
-                <div className="lg:col-span-7">
-                  <Timeline
-                    executions={executions}
-                    activities={routineActivities}
-                    onSelectExecution={(exec) => setSelectedExecutionId(exec.id)}
-                    currentExecutionId={selectedExecutionId}
-                  />
                 </div>
 
-                {/* Detail Panel */}
-                <div className="lg:col-span-5 h-[620px] sticky top-20">
-                  {selectedExecution && selectedActivity ? (
-                    <ActivityDetail
-                      activity={selectedActivity}
-                      execution={selectedExecution}
-                      onStartExecution={startExecution}
-                      onPauseExecution={pauseExecution}
-                      onResetExecution={resetExecution}
-                      onCompleteExecution={completeExecution}
-                      onUpdateExecutionNotes={(id, notes) => {
-                        setAppState(prev => {
-                          const list = prev.executions.map(e => e.id === id ? { ...e, notes } as Execution : e);
-                          return { ...prev, executions: list };
-                        });
-                      }}
-                      onClose={() => setSelectedExecutionId(null)}
-                      isRunningGlobal={appState.currentExecutionId !== null}
-                      activeExecutionId={appState.currentExecutionId}
-                    />
-                  ) : (
-                    <div className="bg-white rounded-xl border border-dashed border-gray-200 h-full flex flex-col items-center justify-center text-center p-8 text-gray-400">
-                      <LayoutGrid className="h-10 w-10 text-gray-300 stroke-1 mb-3" />
-                      <h4 className="font-sora font-semibold text-gray-700 text-sm">Nenhuma Atividade Selecionada</h4>
-                      <p className="text-xs text-gray-400 mt-1 max-w-[240px]">
-                        Clique em qualquer cartão na Agenda Operacional à esquerda para visualizar instruções, caminhos, robôs e iniciar o cronômetro.
+                {/* SPOTLIGHT: DEVO FAZER AGORA? */}
+                {nextSpotlightExecution && nextSpotlightActivity && (
+                  <div className="bg-gradient-to-r from-[#0339A6] to-[#122A44] rounded-xl shadow-lg border border-blue-900/40 p-5 md:p-6 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative overflow-hidden">
+                    {/* Glowing dynamic badge */}
+                    <span className="absolute -right-8 -bottom-8 bg-[#F21D2F] opacity-10 h-32 w-32 rounded-full pointer-events-none" />
+                    
+                    <div className="space-y-1.5 flex-1">
+                      <span className="text-[10px] uppercase font-black text-[#F2B705] tracking-widest block">Spotlight · Recomendação de Foco</span>
+                      <h2 className="font-sora font-extrabold text-lg flex items-center gap-2">
+                        <span>{nextSpotlightActivity.nome}</span>
+                        <span className="text-xs font-mono font-bold bg-[#F21D2F] text-white px-2 py-0.5 rounded">
+                          Previsto: {nextSpotlightExecution.scheduledTime}
+                        </span>
+                      </h2>
+                      <p className="text-xs text-blue-100 line-clamp-1 max-w-2xl font-medium">
+                        {nextSpotlightActivity.objetivo}
                       </p>
+                      <div className="flex flex-wrap gap-2 pt-1 text-[10px] text-blue-200">
+                        <span>Prazo estimado: <b>{nextSpotlightActivity.estimativaMinutos || '15'} min</b></span>
+                        <span>•</span>
+                        <span>Categoria: <b>{nextSpotlightActivity.categoria.toUpperCase()}</b></span>
+                      </div>
                     </div>
-                  )}
+
+                    <div className="flex items-center gap-3 w-full md:w-auto">
+                      <button
+                        onClick={() => {
+                          setSelectedExecutionId(nextSpotlightExecution.id);
+                          setIsFocoActive(true);
+                        }}
+                        className="w-full md:w-auto px-6 py-3 font-extrabold text-xs text-gray-900 bg-[#F2B705] hover:bg-[#d4a004] rounded-lg transition shadow-md flex items-center justify-center gap-1.5"
+                      >
+                        <Sparkles className="h-4 w-4" /> COMEÇAR NO MODO FOCO
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedExecutionId(nextSpotlightExecution.id);
+                        }}
+                        className="w-full md:w-auto px-4 py-3 font-bold text-xs text-white bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg transition"
+                      >
+                        Ver Passos
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* KEY STATS INDICATORS BAR */}
+                <Indicators executions={executions} activities={routineActivities} />
+
+                {/* CORE DASHBOARD GRID: LEFT RESUMO BIs / RIGHT INSTRUCTIONS */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  
+                  {/* Resumo de BIs Panel */}
+                  <div className="lg:col-span-8 flex flex-col">
+                    <BiSummary
+                      executions={executions}
+                      activities={routineActivities}
+                      onSelectExecution={(execId) => setSelectedExecutionId(execId)}
+                      onForceCreateExecution={handleForceCreateExecution}
+                      onCompleteExecution={completeExecution}
+                    />
+                  </div>
+
+                  {/* Detail Panel */}
+                  <div className="lg:col-span-4 h-[620px] sticky top-20">
+                    {selectedExecution && selectedActivity ? (
+                      <ActivityDetail
+                        activity={selectedActivity}
+                        execution={selectedExecution}
+                        onStartExecution={startExecution}
+                        onPauseExecution={pauseExecution}
+                        onResetExecution={resetExecution}
+                        onCompleteExecution={completeExecution}
+                        onUpdateExecutionNotes={(id, notes) => {
+                          setAppState(prev => {
+                            const list = prev.executions.map(e => e.id === id ? { ...e, notes } : e);
+                            return { ...prev, executions: list };
+                          });
+                        }}
+                        onClose={() => setSelectedExecutionId(null)}
+                        isRunningGlobal={appState.currentExecutionId !== null}
+                        activeExecutionId={appState.currentExecutionId}
+                      />
+                    ) : (
+                      <div className="bg-white rounded-xl border border-dashed border-gray-200 h-full flex flex-col items-center justify-center text-center p-8 text-gray-400">
+                        <LayoutGrid className="h-10 w-10 text-gray-300 stroke-1 mb-3" />
+                        <h4 className="font-sora font-semibold text-gray-700 text-sm">Nenhum BI Selecionado</h4>
+                        <p className="text-xs text-gray-400 mt-1 max-w-[240px]">
+                          Clique em qualquer linha na tabela de Resumo de BIs à esquerda para visualizar instruções, caminhos, robôs e iniciar o cronômetro.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
                 </div>
 
               </div>
+            )}
 
-            </div>
-          )}
-
-          {/* TAB: AGENDA (TIMELINE FILTER EXPANDED) */}
-          {currentTab === 'agenda' && (
-            <div className="space-y-6 animate-fade-in">
-              <div className="bg-white rounded-xl shadow border border-gray-100 p-6">
-                <h2 className="font-sora font-black text-xl text-gray-900">Agenda Operacional Detalhada</h2>
-                <p className="text-xs text-gray-400 mt-1">Navegue de forma expandida por toda a sua listagem cronológica do dia de trabalho.</p>
+            {/* TAB: AGENDA (TIMELINE FILTER EXPANDED) */}
+            {currentTab === 'agenda' && (
+              <div className="space-y-6 animate-fade-in">
+                <div className="bg-white rounded-xl shadow border border-gray-100 p-6">
+                  <h2 className="font-sora font-black text-xl text-gray-900">Agenda Operacional Detalhada</h2>
+                  <p className="text-xs text-gray-400 mt-1">Navegue de forma expandida por toda a sua listagem cronológica do dia de trabalho.</p>
+                </div>
+                <Timeline
+                  executions={executions}
+                  activities={routineActivities}
+                  onSelectExecution={(exec) => {
+                    setSelectedExecutionId(exec.id);
+                    setCurrentTab('dashboard'); // Jump to dashboard to see active panel
+                  }}
+                  currentExecutionId={selectedExecutionId}
+                />
               </div>
-              <Timeline
+            )}
+
+            {/* TAB: BIs (CHECKLIST OPERACIONAL) */}
+            {currentTab === 'bis' && (
+              <BisTable
                 executions={executions}
                 activities={routineActivities}
-                onSelectExecution={(exec) => {
-                  setSelectedExecutionId(exec.id);
-                  setCurrentTab('dashboard'); 
+                onStartExecution={startExecution}
+                onCompleteExecution={completeExecution}
+                onSelectExecution={(id) => {
+                  setSelectedExecutionId(id);
+                  setCurrentTab('dashboard');
                 }}
-                currentExecutionId={selectedExecutionId}
+                currentExecutionId={appState.currentExecutionId}
+                onForceCreateExecution={handleForceCreateExecution}
               />
-            </div>
-          )}
+            )}
 
-          {/* TAB: DIRETÓRIOS / CAMINHOS DE REDE */}
-          {currentTab === 'diretorios' && (
-            <div className="animate-fade-in">
-              <NetworkPaths activities={routineActivities} />
-            </div>
-          )}
+            {/* TAB: DIRECTORIES (MAPA DE PASTAS E SERVIDORES) */}
+            {currentTab === 'directories' && (
+              <DirectoriesPanel
+                activities={routineActivities}
+                onSelectExecutionByActivityId={(actId) => {
+                  const exec = executions.find(e => e.activityId === actId);
+                  if (exec) {
+                    setSelectedExecutionId(exec.id);
+                    setCurrentTab('dashboard');
+                  } else {
+                    handleForceCreateExecution(actId, '12:00');
+                    alert('Atividade gerada no painel! Criamos uma execução manual para você auditá-la no cockpit.');
+                    setCurrentTab('dashboard');
+                  }
+                }}
+              />
+            )}
 
-          {/* TAB: PRODUCTIVITY REPORT */}
-          {currentTab === 'produtividade' && (
-            <div className="animate-fade-in">
-              <DailyReport
+            {/* TAB: MARCOS DO MÊS */}
+            {currentTab === 'marcos' && (
+              <MonthlyMilestones
                 executions={executions}
                 activities={routineActivities}
-                onTriggerEmail={handleManualEmailTrigger}
-                onTriggerTeams={handleManualTeamsTrigger}
-                teamsIntegrationStatus={teamsStatus}
+                onForceCreateExecution={handleForceCreateExecution}
+                onSelectExecutionByActivityId={(actId) => {
+                  const exec = executions.find(e => e.activityId === actId);
+                  if (exec) {
+                    setSelectedExecutionId(exec.id);
+                    setCurrentTab('dashboard');
+                  } else {
+                    handleForceCreateExecution(actId, '10:00');
+                    alert('Uma execução manual avulsa foi aberta no seu painel para auditoria deste marco contábil!');
+                    setCurrentTab('dashboard');
+                  }
+                }}
               />
-            </div>
-          )}
+            )}
 
-          {/* TAB: HISTORY LOGS */}
-          {currentTab === 'historico' && (
-            <div className="animate-fade-in">
-              <HistoryView
-                history={history}
-                todayExecutions={executions}
+            {/* TAB: RECORRENTES E CICLOS */}
+            {currentTab === 'ciclos' && (
+              <CycleRecurrents
+                executions={executions}
                 activities={routineActivities}
+                onForceCreateExecution={handleForceCreateExecution}
+                onSelectExecutionByActivityId={(actId) => {
+                  const exec = executions.find(e => e.activityId === actId);
+                  if (exec) {
+                    setSelectedExecutionId(exec.id);
+                    setCurrentTab('dashboard');
+                  } else {
+                    handleForceCreateExecution(actId, '12:00');
+                    alert('Atividade de ciclo selecionada com sucesso. Uma execução manual correspondente foi criada para auditoria.');
+                    setCurrentTab('dashboard');
+                  }
+                }}
               />
-            </div>
-          )}
+            )}
 
-          {/* TAB: SETTINGS PANEL */}
-          {currentTab === 'configuracoes' && (
-            <div className="animate-fade-in">
-              <ConfigPanel
-                config={config}
-                onSaveConfig={handleSaveConfig}
-                onResetAllData={handleResetAllData}
-              />
-            </div>
-          )}
+            {/* TAB: HISTÓRICO LOGS */}
+            {currentTab === 'history' && (
+              <div className="animate-fade-in">
+                <HistoryView
+                  history={history}
+                  todayExecutions={executions}
+                  activities={routineActivities}
+                />
+              </div>
+            )}
 
-        </main>
-      )}
+            {/* TAB: PRODUCTIVITY REPORT */}
+            {currentTab === 'reports' && (
+              <div className="animate-fade-in">
+                <DailyReport
+                  executions={executions}
+                  activities={routineActivities}
+                  onTriggerEmail={handleManualEmailTrigger}
+                  onTriggerTeams={handleManualTeamsTrigger}
+                  teamsIntegrationStatus={teamsStatus}
+                />
+              </div>
+            )}
 
-      {/* FOOTER */}
-      <footer className="bg-white border-t border-gray-200 mt-12 py-6 text-center text-xs text-gray-400 print:hidden">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <span><b>Rotina Inteligente</b> · Copiloto Corporativo de Produtividade</span>
-          <span>Desenvolvido para auditoria interna da rotina Hapvida · Karine</span>
-        </div>
-      </footer>
+            {/* TAB: SETTINGS PANEL */}
+            {currentTab === 'config' && (
+              <div className="animate-fade-in">
+                <ConfigPanel
+                  config={config}
+                  onSaveConfig={handleSaveConfig}
+                  onResetAllData={handleResetAllData}
+                />
+              </div>
+            )}
 
+          </main>
+        )}
+
+        {/* FOOTER */}
+        <footer className="bg-white border-t border-gray-200 mt-auto py-6 text-center text-xs text-gray-400 print:hidden">
+          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <span><b>Rotina Inteligente</b> · Copiloto Corporativo de Produtividade</span>
+            <span>Desenvolvido para auditoria interna da retaguarda Hapvida · Karine</span>
+          </div>
+        </footer>
+
+      </div>
     </div>
   );
 }

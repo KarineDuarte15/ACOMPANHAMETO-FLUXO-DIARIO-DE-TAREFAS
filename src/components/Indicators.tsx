@@ -67,8 +67,16 @@ export const Indicators: React.FC<IndicatorsProps> = ({ executions, activities }
               <TrendingUp className="h-3 w-3" /> Real-time
             </span>
           </div>
+
+          {/* Barra de Progresso elegante e de alto contraste */}
+          <div className="w-full bg-blue-900/50 rounded-full h-2.5 mt-3 overflow-hidden border border-blue-800/30">
+            <div 
+              className="bg-[#F2B705] h-full rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
         </div>
-        <p className="text-xs text-blue-100 mt-2 font-medium line-clamp-2 leading-relaxed">
+        <p className="text-xs text-blue-100 mt-3 font-medium line-clamp-2 leading-relaxed">
           "{progressMessage}"
         </p>
       </div>

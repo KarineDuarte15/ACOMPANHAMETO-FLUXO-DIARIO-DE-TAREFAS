@@ -1,34 +1,69 @@
-export type ActivityCategory = 'diaria' | 'bi' | 'outras' | 'quinzenal' | 'virada' | 'contingencia';
-export type ActivityPriority = 'high' | 'medium' | 'low';
+export type ActivityCategory = 'BI' | 'BASE' | 'LOG' | 'OUTRA' | 'SOB_DEMANDA';
+export type ActivityPriority = 'P0' | 'P1' | 'P2' | 'P3';
+export type ActivityCriticism = 'CRITICA' | 'ALTA' | 'MEDIA' | 'BAIXA';
+export type ActivityFrequency = 'DIARIA' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL' | 'MARCO_MENSAL' | 'SOB_DEMANDA';
+export type ActivityExecutionType = 'AUTOMATICA' | 'MANUAL' | 'SEMIAUTOMATICA' | 'CONTINGENCIA';
+export type ActivityVisibility = 'AGENDA' | 'CICLO' | 'CONTINGENCIA' | 'ARQUIVO';
 
 export interface ActivityPath {
   label: string;
   path: string;
-  images?: string[];
 }
 
 export interface Activity {
   id: string;
-  name: string;
-  category: ActivityCategory;
-  schedule: string[]; // e.g. ["08:00", "10:00"]
-  recurrence: string; // e.g. "Diariamente", "Segunda-feira", "Dia 15", "A cada 2 horas"
-  objective: string;
-  instructions: string[];
-  paths: ActivityPath[];
+  nome: string;
+  biRelacionado: string;
+  categoria: ActivityCategory;
+  prioridade: ActivityPriority;
+  criticidade: ActivityCriticism;
+  frequencia: ActivityFrequency;
+  horario: string[];
+  diasSemana: string[];
+  ativo: boolean;
+  tipoExecucao: ActivityExecutionType;
+  dependencia: string[];
+  impacto: string;
+  objetivo: string;
+  instrucoes: string[];
+  diretorios: string[];
+  arquivos: string[];
   scripts: string[];
-  contingency: string;
-  priority: ActivityPriority;
-  responsible: string;
-  images?: string[];
-  estimatedTime?: string; // in minutes, e.g. "15 min"
+  contingencia?: string[];
+  observacoes: string[];
+  regrasNegocio: string[];
+  condicaoSucesso: string[];
+  condicaoErro: string[];
+  status: 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDA' | 'ATRASADA' | 'BLOQUEADA' | 'NAO_APLICAVEL';
+  horarioPrevisto?: string;
+  iniciadoEm?: string;
+  concluidoEm?: string;
+  duracaoSegundos?: number;
+  atrasoSegundos?: number;
+  motivoAtraso?: string;
+  pessoaInformada?: string;
+  pessoaAjuda?: string;
+  observacaoExecucao?: string;
+  visibilidade: ActivityVisibility;
+
+  // Propriedades legadas mantidas para retrocompatibilidade
+  name: string;
+  category: string;
+  schedule: string[];
+  recurrence: string;
+  priority: string;
+  paths?: ActivityPath[];
+  estimatedTime?: string;
+  contingency?: string[];
+  responsible?: string;
+  responsavel?: string;
 }
 
 export type ExecutionStatus = 
   | 'PENDENTE'
   | 'EM_EXECUCAO'
   | 'CONCLUIDO'
-  | 'ATRASADO' // when scheduled time has passed and execution hasn't started or finished
+  | 'ATRASADO'
   | 'BLOQUEADO'
   | 'NAO_REALIZADO';
 
@@ -46,7 +81,6 @@ export interface Execution {
   informedPerson?: string;
   helperPerson?: string;
   notes?: string;
-  images?: string[];
 }
 
 export interface HistoryDay {
@@ -82,4 +116,16 @@ export interface AppState {
   currentExecutionId: string | null; // currently running cronômetro
   history: HistoryDay[];
   config: UserConfig;
+}
+
+export interface Directory {
+  id: string;
+  nome: string;
+  caminho: string;
+  atividadeId: string;
+  biRelacionado: string;
+  prioridade: string;
+  tipo: string;
+  uso: string;
+  contingencia: boolean;
 }
