@@ -1,9 +1,8 @@
 // src/App.tsx
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { storageService } from './services/storageService';
-import { sheetsService } from './services/sheetsService';
+import { sheetsService } from './services/sheetsService'; 
 import { routineActivities } from './data/activities';
-// Passo 1: Importámos o ExecutionStatus para corrigir os erros 1 a 4
 import { Execution, Activity, UserConfig, AppState, ExecutionStatus } from './types';
 
 // Importação dos Componentes
@@ -23,8 +22,7 @@ import { MonthlyMilestones } from './components/MonthlyMilestones';
 import { CycleRecurrents } from './components/CycleRecurrents';
 import { BiSummary } from './components/BiSummary';
 
-
-import { Sparkles, Clock, LayoutGrid } from 'lucide-react';
+import { Clock, LayoutGrid } from 'lucide-react';
 
 export default function App() {
   const [appState, setAppState] = useState<AppState | null>(null);
@@ -43,25 +41,39 @@ export default function App() {
   const [tempCompletedExecId, setTempCompletedExecId] = useState<string | null>(null);
   const [tempElapsed, setTempElapsed] = useState<number>(0);
   
-  // Visualização
+  // Integrações e Visualização
   const [isReadOnly, setIsReadOnly] = useState<boolean>(() => {
     const params = new URLSearchParams(window.location.search);
     const view = params.get('view') || params.get('mode');
     return view === 'gestor' || view === 'viewer' || view === 'readonly';
   });
-  const [copiedLink, setCopiedLink] = useState(false);
 
+  // =========================================================================
+  // CORREÇÃO DO CARREGAMENTO INFINITO (FIREBASE OFFLINE)
+  // =========================================================================
   useEffect(() => {
     const fetchInitialData = async () => {
-      const cloudData = await storageService.loadStateCloud();
-      if (cloudData) {
-        setAppState(cloudData);
-      } else {
-        const defaultData = storageService.loadState();
-        setAppState(defaultData);
-        await storageService.saveStateCloud(defaultData);
+      try {
+        const cloudData = await storageService.loadStateCloud();
+        if (cloudData) {
+          setAppState(cloudData);
+        } else {
+          // Se a nuvem estiver vazia, pega localmente
+          const defaultData = storageService.loadState();
+          setAppState(defaultData);
+          
+          // REMOVIDO O 'await': O Firebase tenta salvar em segundo plano.
+          // Se a rede bloquear, ele não congela o aplicativo aqui!
+          storageService.saveStateCloud(defaultData);
+        }
+      } catch (error) {
+        console.error("Erro na conexão com Firebase (Modo Offline Ativado):", error);
+        // Fallback garantido para não quebrar a tela
+        setAppState(storageService.loadState());
+      } finally {
+        // O bloco 'finally' obriga a tela de carregamento a sumir, quer dê erro ou não
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
     
     fetchInitialData();
@@ -73,14 +85,6 @@ export default function App() {
       storageService.saveState(appState);
     }
   }, [appState, isReadOnly]);
-
-  const handleCopyGestorLink = () => {
-    const gestorUrl = `${window.location.origin}${window.location.pathname}?view=gestor`;
-    navigator.clipboard.writeText(gestorUrl);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 3000);
-    alert("Link de visualização para Gestores copiado! Envie este link para que acompanhem o progresso em tempo real.");
-  };
 
   useEffect(() => {
     const clockInterval = setInterval(() => {
@@ -108,7 +112,7 @@ export default function App() {
       <div className="min-h-screen bg-[#F2F2F2] flex items-center justify-center font-inter">
         <div className="text-center space-y-4">
            <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-[#0339A6] mx-auto"></div>
-           <p className="text-[#0339A6] font-bold font-sora">A conectar à base de dados na nuvem...</p>
+           <p className="text-[#0339A6] font-bold font-sora">A sincronizar rotinas operacionais...</p>
         </div>
       </div>
     );
@@ -165,7 +169,6 @@ export default function App() {
     return routineActivities.find(a => a.id === nextUpcomingExecution.activityId) || null;
   }, [nextUpcomingExecution]);
 
-  // FUNÇÕES DE CONTROLO DO CRONÓMETRO
   const startExecution = (execId: string) => {
     if (isReadOnly) return;
     const nowStr = new Date().toISOString();
@@ -189,7 +192,7 @@ export default function App() {
           }
           return {
             ...e,
-            status: 'EM_EXECUCAO' as ExecutionStatus, // Passo 2: Cast (correção do TS)
+            status: 'EM_EXECUCAO' as ExecutionStatus,
             startedAt: nowStr,
             delaySeconds: delaySecondsValue > 0 ? delaySecondsValue : undefined
           };
@@ -215,7 +218,7 @@ export default function App() {
           }
           return {
             ...e,
-            status: 'PENDENTE' as ExecutionStatus, // Passo 2: Cast (correção do TS)
+            status: 'PENDENTE' as ExecutionStatus,
             startedAt: undefined,
             durationSeconds: accumulatedSecs > 0 ? accumulatedSecs : undefined
           };
@@ -237,7 +240,7 @@ export default function App() {
             activityId: e.activityId,
             date: e.date,
             scheduledTime: e.scheduledTime,
-            status: 'PENDENTE' as ExecutionStatus // Passo 2: Cast (correção do TS)
+            status: 'PENDENTE' as ExecutionStatus
           };
         }
         return e;
@@ -275,7 +278,7 @@ export default function App() {
         ...exec,
         durationSeconds: elapsedSeconds,
         delaySeconds: delaySecs,
-        status: 'ATRASADO' as ExecutionStatus // Passo 2: Cast (correção do TS)
+        status: 'ATRASADO' as ExecutionStatus
       };
       setModalExecution(enrichedExec);
       setModalType('delay_prompt');
@@ -301,7 +304,7 @@ export default function App() {
         if (e.id === execId) {
           return {
             ...e,
-            status: 'CONCLUIDO' as ExecutionStatus, // Passo 2: Cast (correção do TS)
+            status: 'CONCLUIDO' as ExecutionStatus,
             completedAt: nowStr,
             durationSeconds: elapsedSeconds,
             delaySeconds: delaySecs > 0 ? delaySecs : undefined,
@@ -320,7 +323,7 @@ export default function App() {
 
     const finalizedExec: Execution = {
       ...exec,
-      status: 'CONCLUIDO' as ExecutionStatus, // Passo 2: Cast (correção do TS)
+      status: 'CONCLUIDO' as ExecutionStatus,
       completedAt: nowStr,
       durationSeconds: elapsedSeconds,
       delaySeconds: delaySecs > 0 ? delaySecs : undefined,
@@ -328,10 +331,15 @@ export default function App() {
       informedPerson: delayDetails?.informed,
       helperPerson: delayDetails?.helper
     };
+    
     setModalActivity(act);
     setModalExecution(finalizedExec);
     setModalType('congratulations');
 
+    // =========================================================================
+    // INTEGRAÇÃO SHEETDB: Gravando na planilha silenciosamente
+    // =========================================================================
+    sheetsService.appendRow(finalizedExec, act);
   };
 
   const handleDelayPromptSubmit = (data: { reason: string; explanation: string; informed: string; helper: string; }) => {
@@ -404,7 +412,7 @@ export default function App() {
       activityId,
       date: todayStr,
       scheduledTime,
-      status: 'PENDENTE' as ExecutionStatus // Passo 2: Cast (correção do TS)
+      status: 'PENDENTE' as ExecutionStatus
     };
     
     setAppState(prev => {
@@ -425,7 +433,7 @@ export default function App() {
         soundEnabled={config.soundEnabled}
         onTriggerAlert={handleSchedulerAlertTrigger}
         alertOffsetMinutes={config.alertOffsetMinutes}
-        isPaused={false} // Passo 3: Passámos a propriedade que faltava (correção do erro 5)
+        isPaused={false}
       />
       
       <Navbar
@@ -626,6 +634,7 @@ export default function App() {
               <DailyReport
                 executions={executions}
                 activities={routineActivities}
+                
               />
             )}
 
