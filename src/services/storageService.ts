@@ -2,7 +2,6 @@
 import { AppState, Execution, UserConfig, HistoryDay, ExecutionStatus, Directory } from '../types';
 import { routineActivities } from '../data/activities';
 
-// Adicionámos o 'onSnapshot' aqui
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase'; 
 
@@ -15,9 +14,11 @@ const defaultConfig: UserConfig = {
   enableDelayAlerts: true,
   soundEnabled: true,
   popupEnabled: true,
+
   outlookEnabled: false,
   dailyReportEnabled: true,
   alertOffsetMinutes: 0,
+
 };
 
 export const storageService = {
@@ -116,29 +117,64 @@ export const storageService = {
     }
   },
 
-  // NOVA FUNÇÃO: Ouve as alterações na nuvem em tempo real
+  // NOVA FUNÇÃO: Valida os dados antes de os colocar no ecrã
+  processIncomingState(state: AppState): AppState {
+    const todayStr = this.getTodayDateString();
+    state.config = { ...defaultConfig, ...state.config };
+    
+    const hasTodayExecutions = state.executions && state.executions.length > 0 && state.executions[0].date === todayStr;
+    
+    // Se mudámos de dia, arquivamos o dia de ontem e geramos um novo dia
+    if (!hasTodayExecutions) {
+      if (state.executions && state.executions.length > 0) {
+        const oldDate = state.executions[0].date;
+        const alreadyInHistory = state.history.some(h => h.date === oldDate);
+        if (!alreadyInHistory) {
+          const summary = this.calculateSummaryForExecutions(state.executions);
+          state.history.unshift({
+            date: oldDate,
+            executions: [...state.executions],
+            summary
+          });
+        }
+      }
+      state.executions = this.generateDefaultExecutions(todayStr);
+      state.currentExecutionId = null;
+      
+      // Força a atualização na nuvem do novo dia
+      this.saveStateCloud(state);
+    }
+    return state;
+  },
+
   listenToStateCloud(onSuccess: (state: AppState) => void, onFallback: () => void): () => void {
     const docRef = doc(db, 'rotinas', 'estado_karine');
     
     const unsubscribe = onSnapshot(docRef, 
       (docSnap) => {
         if (docSnap.exists()) {
-          const state = docSnap.data() as AppState;
-          state.config = { ...defaultConfig, ...state.config };
+          let state = docSnap.data() as AppState;
+          state = this.processIncomingState(state); // Validação de novo dia!
+          this.saveState(state); // Backup local
           onSuccess(state);
         } else {
-          onFallback(); // Se a base de dados estiver vazia (primeiro acesso)
+          // Documento não existe (primeiro acesso)
+          let newState = this.loadState();
+          newState = this.processIncomingState(newState);
+          this.saveStateCloud(newState);
+          onSuccess(newState);
         }
       },
       (error) => {
         console.error("Erro na escuta do Firebase (Modo Offline):", error);
-        onFallback(); // Se a internet cair ou a rede bloquear
+        onFallback();
       }
     );
     
-    return unsubscribe; // Retornamos a função de limpeza para desligar o rádio quando o site fechar
+    return unsubscribe;
   },
 
+  // (O resto mantém-se igual...)
   loadState(): AppState {
     const todayStr = this.getTodayDateString();
     try {
@@ -146,33 +182,9 @@ export const storageService = {
       if (serialized) {
         const state: AppState = JSON.parse(serialized);
         state.config = { ...defaultConfig, ...state.config };
-        
-        const hasTodayExecutions = state.executions && state.executions.length > 0 && state.executions[0].date === todayStr;
-        
-        if (!hasTodayExecutions) {
-          if (state.executions && state.executions.length > 0) {
-            const oldDate = state.executions[0].date;
-            const alreadyInHistory = state.history.some(h => h.date === oldDate);
-            
-            if (!alreadyInHistory) {
-              const summary = this.calculateSummaryForExecutions(state.executions);
-              const historyDay: HistoryDay = {
-                date: oldDate,
-                executions: [...state.executions],
-                summary
-              };
-              state.history.unshift(historyDay);
-            }
-          }
-          state.executions = this.generateDefaultExecutions(todayStr);
-          state.currentExecutionId = null;
-          this.saveState(state);
-        }
-        return state;
+        return state; // Delegamos a validação de datas para o `processIncomingState`
       }
-    } catch (e) {
-      console.error('Erro ao carregar state do localStorage:', e);
-    }
+    } catch (e) {}
 
     const todayExecutions = this.generateDefaultExecutions(todayStr);
     const newState: AppState = {

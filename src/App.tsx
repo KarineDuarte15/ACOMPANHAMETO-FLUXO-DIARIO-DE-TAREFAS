@@ -45,39 +45,29 @@ export default function App() {
     return view === 'gestor' || view === 'viewer' || view === 'readonly';
   });
 
-  // =========================================================================
-  // NOVA LÓGICA DE SINCRONIZAÇÃO EM TEMPO REAL (ONSNAPSHOT)
-  // =========================================================================
+  // Escuta das alterações na nuvem
   useEffect(() => {
-    // A função listenToStateCloud retorna um "unsubscribe" para desligarmos o rádio quando necessário
     const unsubscribe = storageService.listenToStateCloud(
       (cloudData) => {
-        // Sucesso: recebeu os dados em tempo real da nuvem
         setAppState(cloudData);
         setIsLoading(false);
       },
       () => {
-        // Fallback: A nuvem está vazia ou a internet falhou (Puxa os dados locais)
+        // Fallback: Modo offline ou primeiro acesso
         const defaultData = storageService.loadState();
-        setAppState(defaultData);
-        storageService.saveStateCloud(defaultData); // Tenta salvar na nuvem
+        let validatedData = storageService.processIncomingState(defaultData);
+        setAppState(validatedData);
+        storageService.saveStateCloud(validatedData);
         setIsLoading(false);
       }
     );
 
-    // Limpa a conexão quando o componente é desmontado
     return () => {
       if (unsubscribe) unsubscribe();
     };
   }, []);
 
-  useEffect(() => {
-    if (!isReadOnly && appState) {
-      storageService.saveStateCloud(appState);
-      storageService.saveState(appState);
-    }
-  }, [appState, isReadOnly]);
-
+  // Relógio digital
   useEffect(() => {
     const clockInterval = setInterval(() => {
       setCurrentTime(new Date());
@@ -85,6 +75,7 @@ export default function App() {
     return () => clearInterval(clockInterval);
   }, []);
 
+  // Atualizar título da aba
   useEffect(() => {
     if (!appState) return;
     const activeExec = appState.executions.find(e => e.status === 'EM_EXECUCAO');
@@ -150,6 +141,7 @@ export default function App() {
     return routineActivities.find(a => a.id === nextUpcomingExecution.activityId) || null;
   }, [nextUpcomingExecution]);
 
+  // FUNÇÕES QUE GRAVAM ATIVAMENTE NA NUVEM
   const startExecution = (execId: string) => {
     if (isReadOnly) return;
     const nowStr = new Date().toISOString();
@@ -180,7 +172,9 @@ export default function App() {
         }
         return e;
       });
-      return { ...prev, executions: list, currentExecutionId: execId };
+      const newState = { ...prev, executions: list, currentExecutionId: execId };
+      storageService.saveStateCloud(newState); // Gravação Cirúrgica
+      return newState;
     });
     setSelectedExecutionId(execId);
   };
@@ -206,7 +200,9 @@ export default function App() {
         }
         return e;
       });
-      return { ...prev, executions: list, currentExecutionId: null };
+      const newState = { ...prev, executions: list, currentExecutionId: null };
+      storageService.saveStateCloud(newState); // Gravação Cirúrgica
+      return newState;
     });
   };
 
@@ -226,11 +222,13 @@ export default function App() {
         }
         return e;
       });
-      return {
+      const newState = {
         ...prev,
         executions: list,
         currentExecutionId: prev.currentExecutionId === execId ? null : prev.currentExecutionId
       };
+      storageService.saveStateCloud(newState); // Gravação Cirúrgica
+      return newState;
     });
   };
 
@@ -299,7 +297,9 @@ export default function App() {
         }
         return e;
       });
-      return { ...prev, executions: list, currentExecutionId: null };
+      const newState = { ...prev, executions: list, currentExecutionId: null };
+      storageService.saveStateCloud(newState); // Gravação Cirúrgica
+      return newState;
     });
 
     const finalizedExec: Execution = {
@@ -317,6 +317,7 @@ export default function App() {
     setModalExecution(finalizedExec);
     setModalType('congratulations');
 
+    // INTEGRAÇÃO SHEETDB (Silenciosa)
     sheetsService.appendRow(finalizedExec, act);
   };
 
@@ -356,7 +357,9 @@ export default function App() {
           }
           return e;
         });
-        return { ...prev, executions: list };
+        const newState = { ...prev, executions: list };
+        storageService.saveStateCloud(newState); // Gravação Cirúrgica
+        return newState;
       });
       setModalType(null);
     }
@@ -372,13 +375,23 @@ export default function App() {
 
   const handleSaveConfig = (newConfig: UserConfig) => {
     if (isReadOnly) return;
-    setAppState(prev => prev ? ({ ...prev, config: newConfig }) : prev);
+    setAppState(prev => {
+      if (!prev) return prev;
+      const newState = { ...prev, config: newConfig };
+      storageService.saveStateCloud(newState); // Gravação Cirúrgica
+      return newState;
+    });
   };
 
   const handleResetAllData = () => {
     if (isReadOnly) return;
     const cleared = storageService.resetTodayExecutions();
-    setAppState(prev => prev ? ({ ...prev, executions: cleared, currentExecutionId: null }) : prev);
+    setAppState(prev => {
+      if (!prev) return prev;
+      const newState = { ...prev, executions: cleared, currentExecutionId: null };
+      storageService.saveStateCloud(newState); // Gravação Cirúrgica
+      return newState;
+    });
     setSelectedExecutionId(null);
     setIsFocoActive(false);
   };
@@ -399,7 +412,19 @@ export default function App() {
       if (exists) return prev;
       
       const updatedList = [...prev.executions, newExec].sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
-      return { ...prev, executions: updatedList };
+      const newState = { ...prev, executions: updatedList };
+      storageService.saveStateCloud(newState); // Gravação Cirúrgica
+      return newState;
+    });
+  };
+
+  const updateExecutionNotes = (id: string, val: string) => {
+    setAppState(prev => {
+      if (!prev) return prev;
+      const list = prev.executions.map(e => e.id === id ? { ...e, notes: val } : e);
+      const newState = { ...prev, executions: list };
+      storageService.saveStateCloud(newState); // Gravação Cirúrgica
+      return newState;
     });
   };
 
@@ -468,13 +493,7 @@ export default function App() {
             onPauseExecution={pauseExecution}
             onResetExecution={resetExecution}
             onCompleteExecution={completeExecution}
-            onUpdateExecutionNotes={(id, val) => {
-              setAppState(prev => {
-                if (!prev) return prev;
-                const list = prev.executions.map(e => e.id === id ? { ...e, notes: val } : e);
-                return { ...prev, executions: list };
-              });
-            }}
+            onUpdateExecutionNotes={updateExecutionNotes}
             activeExecutionId={appState.currentExecutionId}
             setIsFocoActive={setIsFocoActive}
           />
@@ -518,13 +537,7 @@ export default function App() {
                         onPauseExecution={pauseExecution}
                         onResetExecution={resetExecution}
                         onCompleteExecution={completeExecution}
-                        onUpdateExecutionNotes={(id, notes) => {
-                          setAppState(prev => {
-                            if (!prev) return prev;
-                            const list = prev.executions.map(e => e.id === id ? { ...e, notes } : e);
-                            return { ...prev, executions: list };
-                          });
-                        }}
+                        onUpdateExecutionNotes={updateExecutionNotes}
                         onClose={() => setSelectedExecutionId(null)}
                         isRunningGlobal={appState.currentExecutionId !== null}
                         activeExecutionId={appState.currentExecutionId}
