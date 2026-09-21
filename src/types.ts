@@ -104,11 +104,9 @@ export interface UserConfig {
   enableDelayAlerts: boolean;
   soundEnabled: boolean;
   popupEnabled: boolean;
-  teamsEnabled: boolean;
   outlookEnabled: boolean;
   dailyReportEnabled: boolean;
   alertOffsetMinutes: number; // e.g., 0 (on time), -5 (5 mins before)
-  teamsWebhookUrl: string;
 }
 
 export interface AppState {

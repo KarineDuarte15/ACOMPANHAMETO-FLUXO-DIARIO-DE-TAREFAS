@@ -1,8 +1,7 @@
 // src/App.tsx
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { storageService } from './services/storageService';
-import { teamsService } from './services/teamsService';
-import { outlookService } from './services/outlookService';
+import { sheetsService } from './services/sheetsService';
 import { routineActivities } from './data/activities';
 // Passo 1: Importámos o ExecutionStatus para corrigir os erros 1 a 4
 import { Execution, Activity, UserConfig, AppState, ExecutionStatus } from './types';
@@ -24,6 +23,7 @@ import { MonthlyMilestones } from './components/MonthlyMilestones';
 import { CycleRecurrents } from './components/CycleRecurrents';
 import { BiSummary } from './components/BiSummary';
 
+
 import { Sparkles, Clock, LayoutGrid } from 'lucide-react';
 
 export default function App() {
@@ -43,8 +43,7 @@ export default function App() {
   const [tempCompletedExecId, setTempCompletedExecId] = useState<string | null>(null);
   const [tempElapsed, setTempElapsed] = useState<number>(0);
   
-  // Integrações e Visualização
-  const [teamsStatus, setTeamsStatus] = useState<string>('Disponível');
+  // Visualização
   const [isReadOnly, setIsReadOnly] = useState<boolean>(() => {
     const params = new URLSearchParams(window.location.search);
     const view = params.get('view') || params.get('mode');
@@ -333,13 +332,6 @@ export default function App() {
     setModalExecution(finalizedExec);
     setModalType('congratulations');
 
-    if (config.outlookEnabled) {
-      const { subject, body } = outlookService.buildActivityEmail(finalizedExec, act);
-      outlookService.sendEmail(config.email, subject, body, config.outlookEnabled);
-    }
-    if (config.teamsEnabled && config.teamsWebhookUrl) {
-      teamsService.sendNotification(finalizedExec, act, config.teamsWebhookUrl);
-    }
   };
 
   const handleDelayPromptSubmit = (data: { reason: string; explanation: string; informed: string; helper: string; }) => {
@@ -403,27 +395,6 @@ export default function App() {
     setAppState(prev => prev ? ({ ...prev, executions: cleared, currentExecutionId: null }) : prev);
     setSelectedExecutionId(null);
     setIsFocoActive(false);
-  };
-
-  const handleManualEmailTrigger = () => {
-    const summary = storageService.calculateSummaryForExecutions(executions);
-    const { subject, body } = outlookService.buildDailyReportEmail(
-      storageService.getTodayDateString(), summary, executions, routineActivities
-    );
-    outlookService.sendEmail(config.email, subject, body, config.outlookEnabled);
-    alert(`Relatório diário enviado com sucesso para ${config.email}!`);
-  };
-
-  const handleManualTeamsTrigger = () => {
-    if (!config.teamsWebhookUrl) {
-      alert('Por favor, configure o webhook do Teams na aba de Configurações primeiro!');
-      return;
-    }
-    setTeamsStatus('A enviar...');
-    setTimeout(() => {
-      setTeamsStatus('Enviado com sucesso');
-      alert('Cartão adaptativo de encerramento enviado ao canal do Teams!');
-    }, 1500);
   };
 
   const handleForceCreateExecution = (activityId: string, scheduledTime: string) => {
@@ -655,9 +626,6 @@ export default function App() {
               <DailyReport
                 executions={executions}
                 activities={routineActivities}
-                onTriggerEmail={handleManualEmailTrigger}
-                onTriggerTeams={handleManualTeamsTrigger}
-                teamsIntegrationStatus={teamsStatus}
               />
             )}
 

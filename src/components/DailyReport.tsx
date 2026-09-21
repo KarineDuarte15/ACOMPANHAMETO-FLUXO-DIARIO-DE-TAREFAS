@@ -2,23 +2,17 @@ import React from 'react';
 import { Execution, Activity } from '../types';
 import { 
   BarChart2, FileText, Download, Share2, Award, AlertCircle, TrendingUp, 
-  Clock, CheckCircle, Flame, Target, MessageSquare, Mail, ExternalLink, CheckSquare
+  Clock, CheckCircle, Flame, Target, ExternalLink, CheckSquare
 } from 'lucide-react';
 
 interface DailyReportProps {
   executions: Execution[];
   activities: Activity[];
-  onTriggerEmail?: () => void;
-  onTriggerTeams?: () => void;
-  teamsIntegrationStatus: string;
 }
 
 export const DailyReport: React.FC<DailyReportProps> = ({
   executions,
   activities,
-  onTriggerEmail,
-  onTriggerTeams,
-  teamsIntegrationStatus
 }) => {
   const total = executions.length;
   const completedExecs = executions.filter((e) => e.status === 'CONCLUIDO');
@@ -366,23 +360,6 @@ export const DailyReport: React.FC<DailyReportProps> = ({
               {performanceEvaluation}
             </div>
 
-            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-gray-100">
-              <span className="text-xs text-gray-400 font-medium">Compartilhar com a coordenação:</span>
-              <div className="flex gap-2">
-                <button
-                  onClick={onTriggerEmail}
-                  className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition flex items-center gap-1"
-                >
-                  <Mail className="h-3.5 w-3.5" /> Enviar por E-mail
-                </button>
-                <button
-                  onClick={onTriggerTeams}
-                  className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition flex items-center gap-1"
-                >
-                  <MessageSquare className="h-3.5 w-3.5" /> Enviar ao Teams
-                </button>
-              </div>
-            </div>
           </div>
         </div>
 

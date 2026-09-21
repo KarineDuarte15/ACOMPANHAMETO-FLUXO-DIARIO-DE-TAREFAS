@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { UserConfig } from '../types';
 import { 
-  Settings, User, Bell, MessageSquare, Mail, Sliders, Check, RefreshCw, 
+  Settings, User, Bell, Mail, Sliders, Check, RefreshCw, 
   HelpCircle, Shield, Network, EyeOff, AlertCircle
 } from 'lucide-react';
 
@@ -22,10 +22,8 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   const [enableTimeAlerts, setEnableTimeAlerts] = useState(config.enableTimeAlerts);
   const [enableDelayAlerts, setEnableDelayAlerts] = useState(config.enableDelayAlerts);
   const [popupEnabled, setPopupEnabled] = useState(config.popupEnabled);
-  const [teamsEnabled, setTeamsEnabled] = useState(config.teamsEnabled);
   const [outlookEnabled, setOutlookEnabled] = useState(config.outlookEnabled);
   const [dailyReportEnabled, setDailyReportEnabled] = useState(config.dailyReportEnabled);
-  const [teamsWebhookUrl, setTeamsWebhookUrl] = useState(config.teamsWebhookUrl || '');
   const [alertOffset, setAlertOffset] = useState(config.alertOffsetMinutes);
   
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
@@ -39,10 +37,8 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
       enableTimeAlerts,
       enableDelayAlerts,
       popupEnabled,
-      teamsEnabled,
       outlookEnabled,
       dailyReportEnabled,
-      teamsWebhookUrl,
       alertOffsetMinutes: Number(alertOffset)
     });
     setShowSavedFeedback(true);
@@ -173,47 +169,6 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
             </div>
           </div>
 
-          {/* TEAMS WEBHOOK INTEGRATION */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow p-5 space-y-4">
-            <h3 className="font-sora font-bold text-sm text-gray-800 border-b border-gray-100 pb-2 flex items-center justify-between">
-              <span className="flex items-center gap-1.5"><MessageSquare className="h-4.5 w-4.5 text-[#0339A6]" /> Integração com Microsoft Teams</span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${teamsEnabled && teamsWebhookUrl ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                {teamsEnabled && teamsWebhookUrl ? '🟢 Conectado' : '⚪ Não configurado'}
-              </span>
-            </h3>
-
-            <div className="space-y-3">
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={teamsEnabled}
-                  onChange={(e) => setTeamsEnabled(e.target.checked)}
-                  className="mt-0.5 rounded border-gray-300 text-[#0339A6] focus:ring-[#0339A6]"
-                />
-                <div>
-                  <span className="text-xs font-bold text-gray-800 block">Ativar integração Teams (Power Automate)</span>
-                  <span className="text-[10px] text-gray-400 block">Enviar cartão estruturado ao canal de agendas no Teams ao finalizar tarefas.</span>
-                </div>
-              </label>
-
-              {teamsEnabled && (
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Webhook URL (Power Automate)</label>
-                  <input
-                    type="url"
-                    value={teamsWebhookUrl}
-                    onChange={(e) => setTeamsWebhookUrl(e.target.value)}
-                    placeholder="https://prod-XX.brazilsouth.logic.azure.com:443/workflows/..."
-                    className="w-full text-xs font-mono border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-[#0339A6] focus:border-transparent outline-none text-gray-800"
-                  />
-                  <span className="text-[9px] text-gray-400 block mt-1 leading-relaxed">
-                    *Segurança garantida: O link do webhook é salvo localmente no seu navegador via IndexedDB/LocalStorage. Nunca exposto a ambientes públicos.
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* OUTLOOK INTEGRATION */}
           <div className="bg-white rounded-xl border border-gray-100 shadow p-5 space-y-4">
             <h3 className="font-sora font-bold text-sm text-gray-800 border-b border-gray-100 pb-2 flex items-center justify-between">
@@ -293,7 +248,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
               </div>
               <div className="flex items-start gap-1.5">
                 <span className="font-bold text-white">3.</span>
-                <span><b>Integração Segura:</b> A conexão com o Teams e Outlook é orquestrada por fluxos de gatilho webhook do <b>MS Power Automate</b>. Os tokens e segredos de TI nunca trafegam em código exposto no cliente.</span>
+                <span><b>Integração Segura:</b> As integrações corporativas são orquestradas por fluxos de gatilho webhook do <b>MS Power Automate</b>. Os tokens e segredos de TI nunca trafegam em código exposto no cliente.</span>
               </div>
             </div>
           </div>

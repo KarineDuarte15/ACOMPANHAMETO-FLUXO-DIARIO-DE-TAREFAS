@@ -18,11 +18,9 @@ const defaultConfig: UserConfig = {
   enableDelayAlerts: true,
   soundEnabled: true,
   popupEnabled: true,
-  teamsEnabled: false,
   outlookEnabled: false,
   dailyReportEnabled: true,
-  alertOffsetMinutes: 0,
-  teamsWebhookUrl: ''
+  alertOffsetMinutes: 0
 };
 
 export const storageService = {
