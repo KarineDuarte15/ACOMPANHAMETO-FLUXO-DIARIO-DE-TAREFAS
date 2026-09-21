@@ -1,7 +1,10 @@
 // src/services/storageService.ts
+
+// 1. Importações de Tipos e Dados
 import { AppState, Execution, UserConfig, HistoryDay, ExecutionStatus, Directory } from '../types';
 import { routineActivities } from '../data/activities';
 
+// 2. Importações do Firebase
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase'; 
 
@@ -17,6 +20,7 @@ const defaultConfig: UserConfig = {
   outlookEnabled: false,
   dailyReportEnabled: true,
   alertOffsetMinutes: 0,
+
 };
 
 export const storageService = {
@@ -106,12 +110,24 @@ export const storageService = {
     return executions.sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
   },
 
+  // =========================================================================
+  // SOLUÇÃO DO ERRO FIREBASE: O FILTRO SUPREMO
+  // =========================================================================
   async saveStateCloud(state: AppState): Promise<void> {
     try {
+      // 1. Transformamos o objeto em texto (isto destrói todas as propriedades "undefined")
+      const stateAsText = JSON.stringify(state);
+      
+      // 2. Transformamos de volta num objeto JavaScript 100% limpo
+      const cleanState = JSON.parse(stateAsText);
+
       const docRef = doc(db, 'rotinas', 'estado_karine');
-      await setDoc(docRef, state);
+      
+      // 3. Enviamos o objeto limpo para o Firebase
+      await setDoc(docRef, cleanState);
     } catch (e) {
       console.error('Erro ao guardar no Firebase:', e);
+      alert(`Erro crítico: O Firebase bloqueou a gravação! Detalhe: ${(e as Error).message}`);
     }
   },
 
@@ -274,16 +290,12 @@ export const storageService = {
             delayReason = idx % 2 === 0 ? 'Demanda urgente' : 'Problema técnico';
           }
         }
-
-        // CORREÇÃO: Usar 'delete' em vez de enviar undefined
-        const safeExec = { ...exec, status } as any;
-        if (startedAt) safeExec.startedAt = startedAt;
-        if (completedAt) safeExec.completedAt = completedAt;
-        if (status === 'CONCLUIDO') safeExec.durationSeconds = durationSeconds;
-        if (delaySeconds > 0) safeExec.delaySeconds = delaySeconds;
-        if (delayReason) safeExec.delayReason = delayReason;
-
-        return safeExec;
+        return {
+          ...exec, status, startedAt, completedAt,
+          durationSeconds: status === 'CONCLUIDO' ? durationSeconds : undefined,
+          delaySeconds: delaySeconds > 0 ? delaySeconds : undefined,
+          delayReason: delayReason || undefined
+        };
       });
 
       history.push({ date: dateStr, executions, summary: this.calculateSummaryForExecutions(executions) });
