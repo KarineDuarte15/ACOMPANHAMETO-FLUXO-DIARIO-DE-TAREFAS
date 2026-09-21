@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { storageService } from './services/storageService';
 import { sheetsService } from './services/sheetsService'; 
 import { routineActivities } from './data/activities';
@@ -53,7 +53,6 @@ export default function App() {
         setIsLoading(false);
       },
       () => {
-        // Fallback: Modo offline ou primeiro acesso
         const defaultData = storageService.loadState();
         let validatedData = storageService.processIncomingState(defaultData);
         setAppState(validatedData);
@@ -75,7 +74,6 @@ export default function App() {
     return () => clearInterval(clockInterval);
   }, []);
 
-  // Atualizar título da aba
   useEffect(() => {
     if (!appState) return;
     const activeExec = appState.executions.find(e => e.status === 'EM_EXECUCAO');
@@ -141,99 +139,100 @@ export default function App() {
     return routineActivities.find(a => a.id === nextUpcomingExecution.activityId) || null;
   }, [nextUpcomingExecution]);
 
-  // FUNÇÕES QUE GRAVAM ATIVAMENTE NA NUVEM
+  // =======================================================================
+  // CORREÇÃO: Remoção de 'undefined' nas gravações para não assustar o Firebase
+  // =======================================================================
+  
   const startExecution = (execId: string) => {
-    if (isReadOnly) return;
+    if (isReadOnly || !appState) return;
     const nowStr = new Date().toISOString();
-    setAppState(prev => {
-      if (!prev) return prev;
-      const list = prev.executions.map(e => {
-        if (e.id === execId) {
-          const [schedHour, schedMin] = e.scheduledTime.split(':').map(Number);
-          const schedDate = new Date();
-          schedDate.setHours(schedHour, schedMin, 0, 0);
-          
-          const actualStart = new Date(nowStr);
-          const delayMs = actualStart.getTime() - schedDate.getTime();
-          const delaySecs = delayMs > 0 ? Math.floor(delayMs / 1000) : 0;
-          
-          let statusStr = e.status;
-          let delaySecondsValue = e.delaySeconds || 0;
-          if (delaySecs > 300) {
-            statusStr = 'ATRASADO';
-            delaySecondsValue = delaySecs;
-          }
-          return {
-            ...e,
-            status: 'EM_EXECUCAO' as ExecutionStatus,
-            startedAt: nowStr,
-            delaySeconds: delaySecondsValue > 0 ? delaySecondsValue : undefined
-          };
+    
+    const newExecutions = appState.executions.map(e => {
+      if (e.id === execId) {
+        const [schedHour, schedMin] = e.scheduledTime.split(':').map(Number);
+        const schedDate = new Date();
+        schedDate.setHours(schedHour, schedMin, 0, 0);
+        
+        const actualStart = new Date(nowStr);
+        const delayMs = actualStart.getTime() - schedDate.getTime();
+        const delaySecs = delayMs > 0 ? Math.floor(delayMs / 1000) : 0;
+        
+        const newE: any = { ...e, status: 'EM_EXECUCAO', startedAt: nowStr };
+        if (delaySecs > 300) {
+          newE.status = 'ATRASADO';
+          newE.delaySeconds = delaySecs;
+        } else if (e.delaySeconds && e.delaySeconds > 0) {
+          newE.delaySeconds = e.delaySeconds;
+        } else {
+          delete newE.delaySeconds;
         }
-        return e;
-      });
-      const newState = { ...prev, executions: list, currentExecutionId: execId };
-      storageService.saveStateCloud(newState); // Gravação Cirúrgica
-      return newState;
+        return newE as Execution;
+      }
+      return e;
     });
+
+    const newState = { ...appState, executions: newExecutions, currentExecutionId: execId };
+    setAppState(newState);
+    storageService.saveStateCloud(newState);
     setSelectedExecutionId(execId);
   };
 
   const pauseExecution = (execId: string) => {
-    if (isReadOnly) return;
-    setAppState(prev => {
-      if (!prev) return prev;
-      const list = prev.executions.map(e => {
-        if (e.id === execId) {
-          let accumulatedSecs = e.durationSeconds || 0;
-          if (e.startedAt) {
-            const start = new Date(e.startedAt).getTime();
-            const now = Date.now();
-            accumulatedSecs += Math.floor((now - start) / 1000);
-          }
-          return {
-            ...e,
-            status: 'PENDENTE' as ExecutionStatus,
-            startedAt: undefined,
-            durationSeconds: accumulatedSecs > 0 ? accumulatedSecs : undefined
-          };
+    if (isReadOnly || !appState) return;
+    
+    const newExecutions = appState.executions.map(e => {
+      if (e.id === execId) {
+        let accumulatedSecs = e.durationSeconds || 0;
+        if (e.startedAt) {
+          const start = new Date(e.startedAt).getTime();
+          const now = Date.now();
+          accumulatedSecs += Math.floor((now - start) / 1000);
         }
-        return e;
-      });
-      const newState = { ...prev, executions: list, currentExecutionId: null };
-      storageService.saveStateCloud(newState); // Gravação Cirúrgica
-      return newState;
+        
+        const newE: any = { ...e, status: 'PENDENTE' };
+        delete newE.startedAt; // Ação de limpeza do undefined
+        
+        if (accumulatedSecs > 0) newE.durationSeconds = accumulatedSecs;
+        else delete newE.durationSeconds;
+        
+        return newE as Execution;
+      }
+      return e;
     });
+
+    const newState = { ...appState, executions: newExecutions, currentExecutionId: null };
+    setAppState(newState);
+    storageService.saveStateCloud(newState); 
   };
 
   const resetExecution = (execId: string) => {
-    if (isReadOnly) return;
-    setAppState(prev => {
-      if (!prev) return prev;
-      const list = prev.executions.map(e => {
-        if (e.id === execId) {
-          return {
-            id: e.id,
-            activityId: e.activityId,
-            date: e.date,
-            scheduledTime: e.scheduledTime,
-            status: 'PENDENTE' as ExecutionStatus
-          };
-        }
-        return e;
-      });
-      const newState = {
-        ...prev,
-        executions: list,
-        currentExecutionId: prev.currentExecutionId === execId ? null : prev.currentExecutionId
-      };
-      storageService.saveStateCloud(newState); // Gravação Cirúrgica
-      return newState;
+    if (isReadOnly || !appState) return;
+    
+    const newExecutions = appState.executions.map(e => {
+      if (e.id === execId) {
+        return {
+          id: e.id,
+          activityId: e.activityId,
+          date: e.date,
+          scheduledTime: e.scheduledTime,
+          status: 'PENDENTE' as ExecutionStatus
+        };
+      }
+      return e;
     });
+
+    const newState = {
+      ...appState,
+      executions: newExecutions,
+      currentExecutionId: appState.currentExecutionId === execId ? null : appState.currentExecutionId
+    };
+    
+    setAppState(newState);
+    storageService.saveStateCloud(newState);
   };
 
   const completeExecution = (execId: string, elapsedSeconds: number) => {
-    if (isReadOnly || !config) return;
+    if (isReadOnly || !config || !appState) return;
     const nowStr = new Date().toISOString();
     const exec = executions.find(e => e.id === execId);
     const act = routineActivities.find(a => a.id === exec?.activityId);
@@ -253,13 +252,10 @@ export default function App() {
       setTempElapsed(elapsedSeconds);
       setModalActivity(act);
       
-      const enrichedExec: Execution = {
-        ...exec,
-        durationSeconds: elapsedSeconds,
-        delaySeconds: delaySecs,
-        status: 'ATRASADO' as ExecutionStatus
-      };
-      setModalExecution(enrichedExec);
+      const enrichedExec: any = { ...exec, durationSeconds: elapsedSeconds, status: 'ATRASADO' };
+      if (delaySecs > 0) enrichedExec.delaySeconds = delaySecs;
+      
+      setModalExecution(enrichedExec as Execution);
       setModalType('delay_prompt');
     } else {
       finalizeExecutionSave(execId, elapsedSeconds, delaySecs);
@@ -272,53 +268,44 @@ export default function App() {
     delaySecs: number, 
     delayDetails?: { reason: string; explanation: string; informed: string; helper: string }
   ) => {
+    if (!appState) return;
     const nowStr = new Date().toISOString();
     const exec = executions.find(e => e.id === execId);
     const act = routineActivities.find(a => a.id === exec?.activityId);
     if (!exec || !act) return;
 
-    setAppState(prev => {
-      if (!prev) return prev;
-      const list = prev.executions.map(e => {
-        if (e.id === execId) {
-          return {
-            ...e,
-            status: 'CONCLUIDO' as ExecutionStatus,
-            completedAt: nowStr,
-            durationSeconds: elapsedSeconds,
-            delaySeconds: delaySecs > 0 ? delaySecs : undefined,
-            delayReason: delayDetails?.reason || e.delayReason,
-            notes: delayDetails?.explanation 
-              ? `[DESVIO] Motivo: ${delayDetails.reason}. Explicação: ${delayDetails.explanation}. Informado: ${delayDetails.informed}. Resolvido com: ${delayDetails.helper}`
-              : e.notes,
-            informedPerson: delayDetails?.informed || e.informedPerson,
-            helperPerson: delayDetails?.helper || e.helperPerson
-          };
-        }
-        return e;
-      });
-      const newState = { ...prev, executions: list, currentExecutionId: null };
-      storageService.saveStateCloud(newState); // Gravação Cirúrgica
-      return newState;
+    let finalizedExec: Execution | null = null;
+
+    const newExecutions = appState.executions.map(e => {
+      if (e.id === execId) {
+        const newE: any = { ...e, status: 'CONCLUIDO', completedAt: nowStr, durationSeconds: elapsedSeconds };
+        
+        if (delaySecs > 0) newE.delaySeconds = delaySecs;
+        else delete newE.delaySeconds;
+        
+        if (delayDetails?.reason || e.delayReason) newE.delayReason = delayDetails?.reason || e.delayReason;
+        if (delayDetails?.explanation) newE.notes = `[DESVIO] Motivo: ${delayDetails.reason}. Explicação: ${delayDetails.explanation}`;
+        if (delayDetails?.informed || e.informedPerson) newE.informedPerson = delayDetails?.informed || e.informedPerson;
+        if (delayDetails?.helper || e.helperPerson) newE.helperPerson = delayDetails?.helper || e.helperPerson;
+        
+        finalizedExec = newE as Execution;
+        return newE as Execution;
+      }
+      return e;
     });
 
-    const finalizedExec: Execution = {
-      ...exec,
-      status: 'CONCLUIDO' as ExecutionStatus,
-      completedAt: nowStr,
-      durationSeconds: elapsedSeconds,
-      delaySeconds: delaySecs > 0 ? delaySecs : undefined,
-      delayReason: delayDetails?.reason,
-      informedPerson: delayDetails?.informed,
-      helperPerson: delayDetails?.helper
-    };
-    
-    setModalActivity(act);
-    setModalExecution(finalizedExec);
-    setModalType('congratulations');
+    const newState = { ...appState, executions: newExecutions, currentExecutionId: null };
+    setAppState(newState);
+    storageService.saveStateCloud(newState); // Sucesso garantido na gravação!
 
-    // INTEGRAÇÃO SHEETDB (Silenciosa)
-    sheetsService.appendRow(finalizedExec, act);
+    if (finalizedExec) {
+      setModalActivity(act);
+      setModalExecution(finalizedExec);
+      setModalType('congratulations');
+
+      // INTEGRAÇÃO SHEETDB (Ouve apenas chaves válidas agora)
+      sheetsService.appendRow(finalizedExec, act);
+    }
   };
 
   const handleDelayPromptSubmit = (data: { reason: string; explanation: string; informed: string; helper: string; }) => {
@@ -344,23 +331,20 @@ export default function App() {
   };
 
   const handleModalPostponeActivity = (minutes: number) => {
-    if (modalExecution) {
-      setAppState(prev => {
-        if (!prev) return prev;
-        const list = prev.executions.map(e => {
-          if (e.id === modalExecution.id) {
-            const [h, m] = e.scheduledTime.split(':').map(Number);
-            const d = new Date();
-            d.setHours(h, m + minutes, 0, 0);
-            const newTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-            return { ...e, scheduledTime: newTime };
-          }
-          return e;
-        });
-        const newState = { ...prev, executions: list };
-        storageService.saveStateCloud(newState); // Gravação Cirúrgica
-        return newState;
+    if (modalExecution && appState) {
+      const newExecutions = appState.executions.map(e => {
+        if (e.id === modalExecution.id) {
+          const [h, m] = e.scheduledTime.split(':').map(Number);
+          const d = new Date();
+          d.setHours(h, m + minutes, 0, 0);
+          const newTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+          return { ...e, scheduledTime: newTime };
+        }
+        return e;
       });
+      const newState = { ...appState, executions: newExecutions };
+      setAppState(newState);
+      storageService.saveStateCloud(newState);
       setModalType(null);
     }
   };
@@ -374,29 +358,24 @@ export default function App() {
   };
 
   const handleSaveConfig = (newConfig: UserConfig) => {
-    if (isReadOnly) return;
-    setAppState(prev => {
-      if (!prev) return prev;
-      const newState = { ...prev, config: newConfig };
-      storageService.saveStateCloud(newState); // Gravação Cirúrgica
-      return newState;
-    });
+    if (isReadOnly || !appState) return;
+    const newState = { ...appState, config: newConfig };
+    setAppState(newState);
+    storageService.saveStateCloud(newState);
   };
 
   const handleResetAllData = () => {
-    if (isReadOnly) return;
+    if (isReadOnly || !appState) return;
     const cleared = storageService.resetTodayExecutions();
-    setAppState(prev => {
-      if (!prev) return prev;
-      const newState = { ...prev, executions: cleared, currentExecutionId: null };
-      storageService.saveStateCloud(newState); // Gravação Cirúrgica
-      return newState;
-    });
+    const newState = { ...appState, executions: cleared, currentExecutionId: null };
+    setAppState(newState);
+    storageService.saveStateCloud(newState);
     setSelectedExecutionId(null);
     setIsFocoActive(false);
   };
 
   const handleForceCreateExecution = (activityId: string, scheduledTime: string) => {
+    if (!appState) return;
     const todayStr = storageService.getTodayDateString();
     const newExec: Execution = {
       id: `${activityId}-${scheduledTime}-${Date.now()}`,
@@ -406,26 +385,21 @@ export default function App() {
       status: 'PENDENTE' as ExecutionStatus
     };
     
-    setAppState(prev => {
-      if (!prev) return prev;
-      const exists = prev.executions.some(e => e.activityId === activityId && e.scheduledTime === scheduledTime);
-      if (exists) return prev;
-      
-      const updatedList = [...prev.executions, newExec].sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
-      const newState = { ...prev, executions: updatedList };
-      storageService.saveStateCloud(newState); // Gravação Cirúrgica
-      return newState;
-    });
+    const exists = appState.executions.some(e => e.activityId === activityId && e.scheduledTime === scheduledTime);
+    if (exists) return;
+    
+    const updatedList = [...appState.executions, newExec].sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
+    const newState = { ...appState, executions: updatedList };
+    setAppState(newState);
+    storageService.saveStateCloud(newState);
   };
 
   const updateExecutionNotes = (id: string, val: string) => {
-    setAppState(prev => {
-      if (!prev) return prev;
-      const list = prev.executions.map(e => e.id === id ? { ...e, notes: val } : e);
-      const newState = { ...prev, executions: list };
-      storageService.saveStateCloud(newState); // Gravação Cirúrgica
-      return newState;
-    });
+    if (!appState) return;
+    const newExecutions = appState.executions.map(e => e.id === id ? { ...e, notes: val } : e);
+    const newState = { ...appState, executions: newExecutions };
+    setAppState(newState);
+    storageService.saveStateCloud(newState);
   };
 
   if (isLoading || !appState || !config) {
@@ -636,7 +610,6 @@ export default function App() {
               <DailyReport
                 executions={executions}
                 activities={routineActivities}
-
               />
             )}
 

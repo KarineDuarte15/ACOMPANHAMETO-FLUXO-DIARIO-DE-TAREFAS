@@ -17,7 +17,6 @@ const defaultConfig: UserConfig = {
   outlookEnabled: false,
   dailyReportEnabled: true,
   alertOffsetMinutes: 0,
-
 };
 
 export const storageService = {
@@ -107,15 +106,12 @@ export const storageService = {
     return executions.sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
   },
 
-  // GRAVAÇÃO NA NUVEM COM AVISO DE ERRO
   async saveStateCloud(state: AppState): Promise<void> {
     try {
       const docRef = doc(db, 'rotinas', 'estado_karine');
       await setDoc(docRef, state);
     } catch (e) {
       console.error('Erro ao guardar no Firebase:', e);
-      // Este alerta é vital para sabermos se as Regras do Firestore estão a bloquear a escrita
-      alert(`Erro crítico: O Firebase bloqueou a gravação! Verifica as permissões (Rules). Detalhe: ${(e as Error).message}`);
     }
   },
 
@@ -278,12 +274,16 @@ export const storageService = {
             delayReason = idx % 2 === 0 ? 'Demanda urgente' : 'Problema técnico';
           }
         }
-        return {
-          ...exec, status, startedAt, completedAt,
-          durationSeconds: status === 'CONCLUIDO' ? durationSeconds : undefined,
-          delaySeconds: delaySeconds > 0 ? delaySeconds : undefined,
-          delayReason: delayReason || undefined
-        };
+
+        // CORREÇÃO: Usar 'delete' em vez de enviar undefined
+        const safeExec = { ...exec, status } as any;
+        if (startedAt) safeExec.startedAt = startedAt;
+        if (completedAt) safeExec.completedAt = completedAt;
+        if (status === 'CONCLUIDO') safeExec.durationSeconds = durationSeconds;
+        if (delaySeconds > 0) safeExec.delaySeconds = delaySeconds;
+        if (delayReason) safeExec.delayReason = delayReason;
+
+        return safeExec;
       });
 
       history.push({ date: dateStr, executions, summary: this.calculateSummaryForExecutions(executions) });
