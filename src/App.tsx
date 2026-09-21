@@ -25,32 +25,28 @@ import { BiSummary } from './components/BiSummary';
 import { Clock, LayoutGrid } from 'lucide-react';
 
 export default function App() {
+  // 1. ESTADOS DO REACT (HOOKS) - Sempre no topo!
   const [appState, setAppState] = useState<AppState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   
-  // Estados de Navegação e Foco
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [isFocoActive, setIsFocoActive] = useState(false);
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
   
-  // Estados de Modais
   const [modalType, setModalType] = useState<'alert' | 'delay_prompt' | 'congratulations' | null>(null);
   const [modalActivity, setModalActivity] = useState<Activity | null>(null);
   const [modalExecution, setModalExecution] = useState<Execution | null>(null);
   const [tempCompletedExecId, setTempCompletedExecId] = useState<string | null>(null);
   const [tempElapsed, setTempElapsed] = useState<number>(0);
   
-  // Integrações e Visualização
   const [isReadOnly, setIsReadOnly] = useState<boolean>(() => {
     const params = new URLSearchParams(window.location.search);
     const view = params.get('view') || params.get('mode');
     return view === 'gestor' || view === 'viewer' || view === 'readonly';
   });
 
-  // =========================================================================
-  // CORREÇÃO DO CARREGAMENTO INFINITO (FIREBASE OFFLINE)
-  // =========================================================================
+  // 2. EFEITOS (USEEFFECT)
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
@@ -58,20 +54,14 @@ export default function App() {
         if (cloudData) {
           setAppState(cloudData);
         } else {
-          // Se a nuvem estiver vazia, pega localmente
           const defaultData = storageService.loadState();
           setAppState(defaultData);
-          
-          // REMOVIDO O 'await': O Firebase tenta salvar em segundo plano.
-          // Se a rede bloquear, ele não congela o aplicativo aqui!
           storageService.saveStateCloud(defaultData);
         }
       } catch (error) {
-        console.error("Erro na conexão com Firebase (Modo Offline Ativado):", error);
-        // Fallback garantido para não quebrar a tela
+        console.error("Modo Offline Ativado:", error);
         setAppState(storageService.loadState());
       } finally {
-        // O bloco 'finally' obriga a tela de carregamento a sumir, quer dê erro ou não
         setIsLoading(false);
       }
     };
@@ -107,20 +97,10 @@ export default function App() {
     }
   }, [appState?.executions]);
 
-  if (isLoading || !appState) {
-    return (
-      <div className="min-h-screen bg-[#F2F2F2] flex items-center justify-center font-inter">
-        <div className="text-center space-y-4">
-           <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-[#0339A6] mx-auto"></div>
-           <p className="text-[#0339A6] font-bold font-sora">A sincronizar rotinas operacionais...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const executions = appState.executions;
-  const config = appState.config;
-  const history = appState.history;
+  // 3. MEMÓRIAS (USEMEMO) - Extração segura para evitar erros caso appState seja nulo no carregamento
+  const executions = appState?.executions || [];
+  const config = appState?.config;
+  const history = appState?.history || [];
 
   const selectedExecution = useMemo(() => {
     if (!selectedExecutionId) return null;
@@ -169,6 +149,7 @@ export default function App() {
     return routineActivities.find(a => a.id === nextUpcomingExecution.activityId) || null;
   }, [nextUpcomingExecution]);
 
+  // 4. FUNÇÕES DE AÇÃO
   const startExecution = (execId: string) => {
     if (isReadOnly) return;
     const nowStr = new Date().toISOString();
@@ -254,7 +235,7 @@ export default function App() {
   };
 
   const completeExecution = (execId: string, elapsedSeconds: number) => {
-    if (isReadOnly) return;
+    if (isReadOnly || !config) return;
     const nowStr = new Date().toISOString();
     const exec = executions.find(e => e.id === execId);
     const act = routineActivities.find(a => a.id === exec?.activityId);
@@ -336,9 +317,7 @@ export default function App() {
     setModalExecution(finalizedExec);
     setModalType('congratulations');
 
-    // =========================================================================
-    // INTEGRAÇÃO SHEETDB: Gravando na planilha silenciosamente
-    // =========================================================================
+    // INTEGRAÇÃO SHEETDB
     sheetsService.appendRow(finalizedExec, act);
   };
 
@@ -350,7 +329,7 @@ export default function App() {
   };
 
   const handleSchedulerAlertTrigger = (exec: Execution, act: Activity) => {
-    if (config.popupEnabled) {
+    if (config?.popupEnabled) {
       setModalActivity(act);
       setModalExecution(exec);
       setModalType('alert');
@@ -425,6 +404,19 @@ export default function App() {
     });
   };
 
+  // 5. RENDERIZAÇÃO CONDICIONAL - AGORA DE FORMA SEGURA (SEM QUEBRAR O REACT)
+  if (isLoading || !appState || !config) {
+    return (
+      <div className="min-h-screen bg-[#F2F2F2] flex items-center justify-center font-inter">
+        <div className="text-center space-y-4">
+           <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-[#0339A6] mx-auto"></div>
+           <p className="text-[#0339A6] font-bold font-sora">A sincronizar rotinas operacionais...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 6. INTERFACE PRINCIPAL
   return (
     <div className="min-h-screen bg-[#F2F2F2] flex flex-col lg:flex-row font-inter">
       <SchedulerAlerts
@@ -634,8 +626,8 @@ export default function App() {
               <DailyReport
                 executions={executions}
                 activities={routineActivities}
-                
-              />
+               
+              />  
             )}
 
             {currentTab === 'config' && (
