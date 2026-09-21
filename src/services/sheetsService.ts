@@ -2,7 +2,7 @@
 import { Execution, Activity } from '../types';
 
 // Substitua pela sua URL gerada no SheetDB
-const SHEETDB_URL = 'https://sheetdb.io/api/v1/AIzaSyDrCBEFgflkR9wI2N3U5LhYQWKk8bKvfnk';
+const SHEETDB_URL = 'https://sheetdb.io/api/v1/mcgfghj2aj0ae';
 
 export const sheetsService = {
   /**
