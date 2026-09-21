@@ -1,16 +1,13 @@
 // src/services/storageService.ts
-
-// 1. Importamos os tipos de dados usados na aplicação
 import { AppState, Execution, UserConfig, HistoryDay, ExecutionStatus, Directory } from '../types';
 import { routineActivities } from '../data/activities';
 
-// 2. Importamos as ferramentas do Firestore e o nosso banco de dados ('db')
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+// Adicionámos o 'onSnapshot' aqui
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase'; 
 
 const STORAGE_KEY = 'rotina_inteligente_state_v1';
 
-// 3. Configurações padrão do utilizador
 const defaultConfig: UserConfig = {
   name: 'Karine',
   email: 'erika.karine@hapvida.com.br',
@@ -20,7 +17,7 @@ const defaultConfig: UserConfig = {
   popupEnabled: true,
   outlookEnabled: false,
   dailyReportEnabled: true,
-  alertOffsetMinutes: 0
+  alertOffsetMinutes: 0,
 };
 
 export const storageService = {
@@ -70,32 +67,20 @@ export const storageService = {
     const isLastDay = this.isLastDayOfMonth(dateObj);
     
     routineActivities.forEach(activity => {
-      if (!activity.ativo || activity.visibilidade === 'ARQUIVO') {
-        return;
-      }
+      if (!activity.ativo || activity.visibilidade === 'ARQUIVO') return;
       
       let isApplicable = false;
       
       if (activity.frequencia === 'DIARIA') {
-        if (!isWeekend) {
-          isApplicable = true;
-        }
+        if (!isWeekend) isApplicable = true;
       } else if (activity.frequencia === 'SEMANAL') {
-        const daysMap: Record<string, number> = {
-          'Segunda': 1, 'Terça': 2, 'Quarta': 3, 'Quinta': 4, 'Sexta': 5
-        };
+        const daysMap: Record<string, number> = { 'Segunda': 1, 'Terça': 2, 'Quarta': 3, 'Quinta': 4, 'Sexta': 5 };
         const activeWeekdays = activity.diasSemana.map(d => daysMap[d]).filter(v => v !== undefined);
-        if (activeWeekdays.includes(dayOfWeek)) {
-          isApplicable = true;
-        }
+        if (activeWeekdays.includes(dayOfWeek)) isApplicable = true;
       } else if (activity.frequencia === 'QUINZENAL') {
-        if (dayOfMonth === 15 || dayOfMonth === 30) {
-          isApplicable = true;
-        }
+        if (dayOfMonth === 15 || dayOfMonth === 30) isApplicable = true;
       } else if (activity.frequencia === 'MENSAL') {
-        if (dayOfMonth === 15) {
-          isApplicable = true;
-        }
+        if (dayOfMonth === 15) isApplicable = true;
       } else if (activity.frequencia === 'MARCO_MENSAL') {
         if (activity.id.includes('primeiro') && nthBusinessDay === 1) isApplicable = true;
         if (activity.id.includes('quinto') && nthBusinessDay === 5) isApplicable = true;
@@ -104,9 +89,7 @@ export const storageService = {
         isApplicable = false;
       }
 
-      if (isLastDay && activity.id === 'bi-alerta-vagas-telesaude-virada') {
-        isApplicable = true;
-      }
+      if (isLastDay && activity.id === 'bi-alerta-vagas-telesaude-virada') isApplicable = true;
       
       if (isApplicable) {
         activity.horario.forEach(time => {
@@ -121,50 +104,40 @@ export const storageService = {
       }
     });
 
-    return executions.sort((a, b) => {
-      return a.scheduledTime.localeCompare(b.scheduledTime);
-    });
+    return executions.sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
   },
 
-  // ------------------------------------------------------------------
-  // NOVAS FUNÇÕES DO FIREBASE (NUVEM)
-  // ------------------------------------------------------------------
-
-  // Grava o estado atual da aplicação na nuvem
   async saveStateCloud(state: AppState): Promise<void> {
     try {
-      // Cria uma referência única para o teu documento. 
-      // Coleção: 'rotinas', Documento: 'estado_karine'
       const docRef = doc(db, 'rotinas', 'estado_karine');
-      // Guarda o objeto state no Firebase
       await setDoc(docRef, state);
     } catch (e) {
       console.error('Erro ao guardar no Firebase:', e);
     }
   },
 
-  // Lê o estado da aplicação gravado na nuvem ao abrir o site
-  async loadStateCloud(): Promise<AppState | null> {
-    try {
-      const docRef = doc(db, 'rotinas', 'estado_karine');
-      const docSnap = await getDoc(docRef);
-      
-      if (docSnap.exists()) {
-        const state = docSnap.data() as AppState;
-        // Garante que as configurações padrão não se perdem
-        state.config = { ...defaultConfig, ...state.config };
-        return state;
+  // NOVA FUNÇÃO: Ouve as alterações na nuvem em tempo real
+  listenToStateCloud(onSuccess: (state: AppState) => void, onFallback: () => void): () => void {
+    const docRef = doc(db, 'rotinas', 'estado_karine');
+    
+    const unsubscribe = onSnapshot(docRef, 
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const state = docSnap.data() as AppState;
+          state.config = { ...defaultConfig, ...state.config };
+          onSuccess(state);
+        } else {
+          onFallback(); // Se a base de dados estiver vazia (primeiro acesso)
+        }
+      },
+      (error) => {
+        console.error("Erro na escuta do Firebase (Modo Offline):", error);
+        onFallback(); // Se a internet cair ou a rede bloquear
       }
-      return null;
-    } catch (e) {
-      console.error('Erro ao carregar do Firebase:', e);
-      return null;
-    }
+    );
+    
+    return unsubscribe; // Retornamos a função de limpeza para desligar o rádio quando o site fechar
   },
-
-  // ------------------------------------------------------------------
-  // FUNÇÕES ANTIGAS (ARMAZENAMENTO LOCAL)
-  // ------------------------------------------------------------------
 
   loadState(): AppState {
     const todayStr = this.getTodayDateString();
@@ -172,7 +145,6 @@ export const storageService = {
       const serialized = localStorage.getItem(STORAGE_KEY);
       if (serialized) {
         const state: AppState = JSON.parse(serialized);
-        
         state.config = { ...defaultConfig, ...state.config };
         
         const hasTodayExecutions = state.executions && state.executions.length > 0 && state.executions[0].date === todayStr;
@@ -192,12 +164,10 @@ export const storageService = {
               state.history.unshift(historyDay);
             }
           }
-
           state.executions = this.generateDefaultExecutions(todayStr);
           state.currentExecutionId = null;
           this.saveState(state);
         }
-        
         return state;
       }
     } catch (e) {
@@ -218,16 +188,13 @@ export const storageService = {
   saveState(state: AppState): void {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (e) {
-      console.error('Erro ao guardar state no localStorage:', e);
-    }
+    } catch (e) {}
   },
 
   calculateSummaryForExecutions(executions: Execution[]) {
     const totalPlanned = executions.length;
     const completedExecs = executions.filter(e => e.status === 'CONCLUIDO');
     const completed = completedExecs.length;
-    
     const delayed = executions.filter(e => e.status === 'ATRASADO' || (e.delaySeconds && e.delaySeconds > 0)).length;
     const notCompleted = totalPlanned - completed;
     
@@ -237,28 +204,18 @@ export const storageService = {
     });
 
     const averageDurationSeconds = completed > 0 ? Math.round(totalDurationSeconds / completed) : 0;
-    
     const completionRate = totalPlanned > 0 ? (completed / totalPlanned) * 100 : 0;
     const punctualityRate = completed > 0 
       ? ((completed - executions.filter(e => e.status === 'CONCLUIDO' && e.delaySeconds && e.delaySeconds > 0).length) / completed) * 100 
       : 100;
     const executionIndex = Math.round((completionRate * 0.7) + (punctualityRate * 0.3));
 
-    return {
-      totalPlanned,
-      completed,
-      delayed,
-      notCompleted,
-      totalDurationSeconds,
-      averageDurationSeconds,
-      executionIndex
-    };
+    return { totalPlanned, completed, delayed, notCompleted, totalDurationSeconds, averageDurationSeconds, executionIndex };
   },
 
   resetTodayExecutions(): Execution[] {
     const todayStr = this.getTodayDateString();
     const defaults = this.generateDefaultExecutions(todayStr);
-    
     try {
       const serialized = localStorage.getItem(STORAGE_KEY);
       if (serialized) {
@@ -267,9 +224,7 @@ export const storageService = {
         state.currentExecutionId = null;
         this.saveState(state);
       }
-    } catch (e) {
-      console.error('Erro ao fazer reset das execuções:', e);
-    }
+    } catch (e) {}
     return defaults;
   },
 
@@ -291,7 +246,6 @@ export const storageService = {
       const rawExecs = this.generateDefaultExecutions(dateStr);
       const executions = rawExecs.map((exec, eidx) => {
         const statusRand = Math.random();
-        
         let status: ExecutionStatus = 'CONCLUIDO';
         let durationSeconds = Math.round(300 + Math.random() * 600);
         let startedAt: string | undefined;
@@ -306,39 +260,26 @@ export const storageService = {
           const [hour, min] = exec.scheduledTime.split(':').map(Number);
           const schedDate = new Date();
           schedDate.setHours(hour, min, 0, 0);
-          
           const offsetMin = Math.round((Math.random() - 0.3) * 12);
           const startDateObj = new Date(schedDate.getTime() + offsetMin * 60 * 1000);
           const endDateObj = new Date(startDateObj.getTime() + durationSeconds * 1000);
-          
           startedAt = startDateObj.toISOString();
           completedAt = endDateObj.toISOString();
-          
           if (offsetMin > 5) {
             delaySeconds = offsetMin * 60;
             delayReason = idx % 2 === 0 ? 'Demanda urgente' : 'Problema técnico';
           }
         }
-
         return {
-          ...exec,
-          status,
-          startedAt,
-          completedAt,
+          ...exec, status, startedAt, completedAt,
           durationSeconds: status === 'CONCLUIDO' ? durationSeconds : undefined,
           delaySeconds: delaySeconds > 0 ? delaySeconds : undefined,
           delayReason: delayReason || undefined
         };
       });
 
-      const summary = this.calculateSummaryForExecutions(executions);
-      history.push({
-        date: dateStr,
-        executions,
-        summary
-      });
+      history.push({ date: dateStr, executions, summary: this.calculateSummaryForExecutions(executions) });
     });
-
     return history;
   },
 

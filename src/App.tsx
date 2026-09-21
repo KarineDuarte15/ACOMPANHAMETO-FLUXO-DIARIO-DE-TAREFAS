@@ -25,7 +25,6 @@ import { BiSummary } from './components/BiSummary';
 import { Clock, LayoutGrid } from 'lucide-react';
 
 export default function App() {
-  // 1. ESTADOS DO REACT (HOOKS) - Sempre no topo!
   const [appState, setAppState] = useState<AppState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -46,27 +45,30 @@ export default function App() {
     return view === 'gestor' || view === 'viewer' || view === 'readonly';
   });
 
-  // 2. EFEITOS (USEEFFECT)
+  // =========================================================================
+  // NOVA LÓGICA DE SINCRONIZAÇÃO EM TEMPO REAL (ONSNAPSHOT)
+  // =========================================================================
   useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        const cloudData = await storageService.loadStateCloud();
-        if (cloudData) {
-          setAppState(cloudData);
-        } else {
-          const defaultData = storageService.loadState();
-          setAppState(defaultData);
-          storageService.saveStateCloud(defaultData);
-        }
-      } catch (error) {
-        console.error("Modo Offline Ativado:", error);
-        setAppState(storageService.loadState());
-      } finally {
+    // A função listenToStateCloud retorna um "unsubscribe" para desligarmos o rádio quando necessário
+    const unsubscribe = storageService.listenToStateCloud(
+      (cloudData) => {
+        // Sucesso: recebeu os dados em tempo real da nuvem
+        setAppState(cloudData);
+        setIsLoading(false);
+      },
+      () => {
+        // Fallback: A nuvem está vazia ou a internet falhou (Puxa os dados locais)
+        const defaultData = storageService.loadState();
+        setAppState(defaultData);
+        storageService.saveStateCloud(defaultData); // Tenta salvar na nuvem
         setIsLoading(false);
       }
+    );
+
+    // Limpa a conexão quando o componente é desmontado
+    return () => {
+      if (unsubscribe) unsubscribe();
     };
-    
-    fetchInitialData();
   }, []);
 
   useEffect(() => {
@@ -97,7 +99,6 @@ export default function App() {
     }
   }, [appState?.executions]);
 
-  // 3. MEMÓRIAS (USEMEMO) - Extração segura para evitar erros caso appState seja nulo no carregamento
   const executions = appState?.executions || [];
   const config = appState?.config;
   const history = appState?.history || [];
@@ -149,7 +150,6 @@ export default function App() {
     return routineActivities.find(a => a.id === nextUpcomingExecution.activityId) || null;
   }, [nextUpcomingExecution]);
 
-  // 4. FUNÇÕES DE AÇÃO
   const startExecution = (execId: string) => {
     if (isReadOnly) return;
     const nowStr = new Date().toISOString();
@@ -317,7 +317,6 @@ export default function App() {
     setModalExecution(finalizedExec);
     setModalType('congratulations');
 
-    // INTEGRAÇÃO SHEETDB
     sheetsService.appendRow(finalizedExec, act);
   };
 
@@ -404,7 +403,6 @@ export default function App() {
     });
   };
 
-  // 5. RENDERIZAÇÃO CONDICIONAL - AGORA DE FORMA SEGURA (SEM QUEBRAR O REACT)
   if (isLoading || !appState || !config) {
     return (
       <div className="min-h-screen bg-[#F2F2F2] flex items-center justify-center font-inter">
@@ -416,7 +414,6 @@ export default function App() {
     );
   }
 
-  // 6. INTERFACE PRINCIPAL
   return (
     <div className="min-h-screen bg-[#F2F2F2] flex flex-col lg:flex-row font-inter">
       <SchedulerAlerts
@@ -626,8 +623,8 @@ export default function App() {
               <DailyReport
                 executions={executions}
                 activities={routineActivities}
-               
-              />  
+
+              />
             )}
 
             {currentTab === 'config' && (
