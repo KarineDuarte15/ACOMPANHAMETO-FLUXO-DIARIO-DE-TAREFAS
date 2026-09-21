@@ -99,15 +99,15 @@ export const ActiveModal: React.FC<ActiveModalProps> = ({
                   <Info className="h-3.5 w-3.5 text-[#0339A6]" /> O que você precisa fazer:
                 </h4>
                 <ul className="space-y-1.5 text-sm text-gray-700">
-                  {activity.instructions.slice(0, 3).map((inst, idx) => (
+                  {(activity.instrucoes || []).slice(0, 3).map((inst, idx) => (
                     <li key={idx} className="flex gap-1.5 items-start">
                       <span className="text-[#0339A6] font-bold">{idx + 1}.</span>
                       <span>{inst}</span>
                     </li>
                   ))}
-                  {activity.instructions.length > 3 && (
+                  {(activity.instrucoes || []).length > 3 && (
                     <li className="text-xs italic text-gray-500 font-medium pl-4">
-                      + {activity.instructions.length - 3} mais instruções no painel...
+                      + {(activity.instrucoes || []).length - 3} mais instruções no painel...
                     </li>
                   )}
                 </ul>

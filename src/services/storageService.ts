@@ -1,8 +1,16 @@
+// src/services/storageService.ts
+
+// 1. Importamos os tipos de dados usados na aplicação
 import { AppState, Execution, UserConfig, HistoryDay, ExecutionStatus, Directory } from '../types';
 import { routineActivities } from '../data/activities';
 
+// 2. Importamos as ferramentas do Firestore e o nosso banco de dados ('db')
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from './firebase'; 
+
 const STORAGE_KEY = 'rotina_inteligente_state_v1';
 
+// 3. Configurações padrão do utilizador
 const defaultConfig: UserConfig = {
   name: 'Karine',
   email: 'erika.karine@hapvida.com.br',
@@ -64,21 +72,17 @@ export const storageService = {
     const isLastDay = this.isLastDayOfMonth(dateObj);
     
     routineActivities.forEach(activity => {
-      // 1. Pular atividades inativas ou arquivadas
       if (!activity.ativo || activity.visibilidade === 'ARQUIVO') {
         return;
       }
       
       let isApplicable = false;
       
-      // 2. Avaliar aplicabilidade operacional dinâmica
       if (activity.frequencia === 'DIARIA') {
-        // Atividades diárias rodam de segunda a sexta-feira
         if (!isWeekend) {
           isApplicable = true;
         }
       } else if (activity.frequencia === 'SEMANAL') {
-        // Mapear dias da semana
         const daysMap: Record<string, number> = {
           'Segunda': 1, 'Terça': 2, 'Quarta': 3, 'Quinta': 4, 'Sexta': 5
         };
@@ -87,26 +91,21 @@ export const storageService = {
           isApplicable = true;
         }
       } else if (activity.frequencia === 'QUINZENAL') {
-        // Regra MEDPREV/VS: Apenas se for exatamente dia 15 ou 30 do mês
         if (dayOfMonth === 15 || dayOfMonth === 30) {
           isApplicable = true;
         }
       } else if (activity.frequencia === 'MENSAL') {
-        // Lista Mensal para Analistas: Apenas no dia 15
         if (dayOfMonth === 15) {
           isApplicable = true;
         }
       } else if (activity.frequencia === 'MARCO_MENSAL') {
-        // Marcos específicos de dias úteis
         if (activity.id.includes('primeiro') && nthBusinessDay === 1) isApplicable = true;
         if (activity.id.includes('quinto') && nthBusinessDay === 5) isApplicable = true;
         if (activity.id.includes('decimo') && nthBusinessDay === 10) isApplicable = true;
       } else if (activity.frequencia === 'SOB_DEMANDA') {
-        // Atividades sob demanda não aparecem automaticamente na rotina diária padrão
         isApplicable = false;
       }
 
-      // Tratamento especial para virada de mês (ex: histórico telesaúde)
       if (isLastDay && activity.id === 'bi-alerta-vagas-telesaude-virada') {
         isApplicable = true;
       }
@@ -124,11 +123,50 @@ export const storageService = {
       }
     });
 
-    // Ordenação cronológica por horário de agendamento
     return executions.sort((a, b) => {
       return a.scheduledTime.localeCompare(b.scheduledTime);
     });
   },
+
+  // ------------------------------------------------------------------
+  // NOVAS FUNÇÕES DO FIREBASE (NUVEM)
+  // ------------------------------------------------------------------
+
+  // Grava o estado atual da aplicação na nuvem
+  async saveStateCloud(state: AppState): Promise<void> {
+    try {
+      // Cria uma referência única para o teu documento. 
+      // Coleção: 'rotinas', Documento: 'estado_karine'
+      const docRef = doc(db, 'rotinas', 'estado_karine');
+      // Guarda o objeto state no Firebase
+      await setDoc(docRef, state);
+    } catch (e) {
+      console.error('Erro ao guardar no Firebase:', e);
+    }
+  },
+
+  // Lê o estado da aplicação gravado na nuvem ao abrir o site
+  async loadStateCloud(): Promise<AppState | null> {
+    try {
+      const docRef = doc(db, 'rotinas', 'estado_karine');
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const state = docSnap.data() as AppState;
+        // Garante que as configurações padrão não se perdem
+        state.config = { ...defaultConfig, ...state.config };
+        return state;
+      }
+      return null;
+    } catch (e) {
+      console.error('Erro ao carregar do Firebase:', e);
+      return null;
+    }
+  },
+
+  // ------------------------------------------------------------------
+  // FUNÇÕES ANTIGAS (ARMAZENAMENTO LOCAL)
+  // ------------------------------------------------------------------
 
   loadState(): AppState {
     const todayStr = this.getTodayDateString();
@@ -165,7 +203,7 @@ export const storageService = {
         return state;
       }
     } catch (e) {
-      console.error('Error loading state from localStorage:', e);
+      console.error('Erro ao carregar state do localStorage:', e);
     }
 
     const todayExecutions = this.generateDefaultExecutions(todayStr);
@@ -183,7 +221,7 @@ export const storageService = {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (e) {
-      console.error('Error saving state to localStorage:', e);
+      console.error('Erro ao guardar state no localStorage:', e);
     }
   },
 
@@ -232,7 +270,7 @@ export const storageService = {
         this.saveState(state);
       }
     } catch (e) {
-      console.error('Error resetting executions:', e);
+      console.error('Erro ao fazer reset das execuções:', e);
     }
     return defaults;
   },
