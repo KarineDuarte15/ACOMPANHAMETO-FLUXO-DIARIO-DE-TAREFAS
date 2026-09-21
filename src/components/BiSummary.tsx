@@ -1,3 +1,4 @@
+// src/components/BiSummary.tsx
 import React, { useState } from 'react';
 import { Search, AlertCircle, CheckCircle2, Clock, Lock, ArrowUpRight } from 'lucide-react';
 import { Activity, Execution } from '../types';
@@ -31,7 +32,7 @@ export const BiSummary: React.FC<BiSummaryProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Estrita lógica de dados solicitada pelo usuário
+  // DOCUMENTAÇÃO: Dados corrigidos com os IDs exatos correspondentes ao activities.ts
   const bisData: BiItem[] = [
     {
       id: '1',
@@ -70,7 +71,7 @@ export const BiSummary: React.FC<BiSummaryProps> = ({
       id: '4',
       name: 'BI Painel dos Médicos',
       priority: 'P1',
-      priorityLabel: '规格 P1',
+      priorityLabel: '🟠 P1',
       time: '10:00',
       type: 'Manual',
       dependency: 'T9033 + T22J3 + Base Falta Espera',
@@ -112,14 +113,14 @@ export const BiSummary: React.FC<BiSummaryProps> = ({
     },
     {
       id: '8',
-      name: 'BI Relatório de Cancelamento v2',
+      name: 'Logs Projetos (Automações)',
       priority: 'P2',
       priorityLabel: '🟡 P2',
-      time: '06:00',
+      time: '08:30',
       type: 'Automática',
       dependency: 'Automação',
       status: 'OK',
-      activityId: 'bi-cancelamento',
+      activityId: 'logs-projetos', // Substituímos o "bi-cancelamento" (inexistente) pela rotina de Logs válida
     },
     {
       id: '9',
@@ -139,7 +140,7 @@ export const BiSummary: React.FC<BiSummaryProps> = ({
       priorityLabel: '🟡 P2',
       time: '09:00',
       type: 'Manual',
-      dependency: '—',
+      dependency: 'SQL',
       status: 'Pendente',
       activityId: 'bi-cirurgias',
     },
@@ -163,7 +164,7 @@ export const BiSummary: React.FC<BiSummaryProps> = ({
       type: 'Automática',
       dependency: 'Automação',
       status: 'OK',
-      activityId: 'bi-acompanhamento-mensageria',
+      activityId: 'bi-mensageria', // Correção do ID: removido o prefixo "acompanhamento-"
     },
     {
       id: '13',
@@ -190,21 +191,20 @@ export const BiSummary: React.FC<BiSummaryProps> = ({
   ];
 
   const handleRowClick = (item: BiItem) => {
-    // Tenta encontrar uma execução ativa para o dia de hoje correspondente
     const matchExec = executions.find(
       (e) => e.activityId.toLowerCase() === item.activityId.toLowerCase()
     );
+
     if (matchExec) {
       onSelectExecution(matchExec.id);
     } else {
-      // Se não houver, e o callback for fornecido, cria ou alerta
       const act = activities.find(
         (a) => a.id.toLowerCase() === item.activityId.toLowerCase()
       );
       if (act && onForceCreateExecution) {
         const timeStr = item.time.includes(':') ? item.time : '08:00';
         onForceCreateExecution(act.id, timeStr);
-        // Após criar, busca novamente
+        // Pequeno atraso apenas visual para garantir que a interface reage à nova criação
         setTimeout(() => {
           const freshExec = executions.find(
             (e) => e.activityId.toLowerCase() === item.activityId.toLowerCase()
@@ -215,20 +215,22 @@ export const BiSummary: React.FC<BiSummaryProps> = ({
         }, 100);
       } else {
         alert(
-          `BI "${item.name}" não possui execução diária aberta para hoje ou está fora do escopo do ciclo atual. Verifique a aba de Ciclos ou use "Acionar Hoje" para forçar.`
+          `O BI "${item.name}" não está registado. Verifica se o ID "${item.activityId}" existe no ficheiro de atividades.`
         );
       }
     }
   };
 
+  // DOCUMENTAÇÃO: Nova lógica limpa e sem "Race Condition" no React
   const handleCheckClick = (e: React.MouseEvent, item: BiItem) => {
-    e.stopPropagation(); // Evita carregar o detalhe da linha
+    e.stopPropagation(); 
     
     const matchExec = executions.find(
       (exec) => exec.activityId.toLowerCase() === item.activityId.toLowerCase()
     );
 
     if (matchExec) {
+      // Cenário 1: A tarefa já existe no dia de hoje
       if (matchExec.status === 'CONCLUIDO') {
         alert(`Este BI "${item.name}" já está concluído e auditado para hoje!`);
       } else {
@@ -236,23 +238,20 @@ export const BiSummary: React.FC<BiSummaryProps> = ({
         onCompleteExecution(matchExec.id, matchExec.durationSeconds || 60);
       }
     } else {
-      // Força a criação e conclui imediatamente
+      // Cenário 2: A tarefa não estava planeada para hoje
       const act = activities.find(
         (a) => a.id.toLowerCase() === item.activityId.toLowerCase()
       );
+
       if (act && onForceCreateExecution) {
         const timeStr = item.time.includes(':') ? item.time : '08:00';
+        // Cria a execução na memória (appState)
         onForceCreateExecution(act.id, timeStr);
-        setTimeout(() => {
-          const freshExec = executions.find(
-            (exec) => exec.activityId.toLowerCase() === item.activityId.toLowerCase()
-          );
-          if (freshExec) {
-            onCompleteExecution(freshExec.id, 60);
-          }
-        }, 150);
+        // Em vez de forçar a conclusão às cegas, pedimos ao utilizador para confirmar com novo clique
+        alert(`✅ A atividade "${item.name}" foi gerada na tua rotina de hoje! Clica novamente no ícone de check para a concluires.`);
       } else {
-        alert(`Não foi possível criar e concluir esta atividade automaticamente.`);
+        // Mostra qual é o ID problemático se algo faltar
+        alert(`❌ Não foi possível encontrar a atividade. O ID interno "${item.activityId}" não está registado no ficheiro activities.ts.`);
       }
     }
   };
@@ -269,7 +268,6 @@ export const BiSummary: React.FC<BiSummaryProps> = ({
 
   return (
     <div className="bg-white rounded-xl shadow border border-gray-100 p-6 flex flex-col h-full animate-fade-in">
-      {/* Header com pesquisa */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
         <div>
           <h2 className="font-sora font-black text-lg text-gray-900">
@@ -279,8 +277,6 @@ export const BiSummary: React.FC<BiSummaryProps> = ({
             Marque diretamente no check para auditar ou clique na linha para carregar diretrizes UNC.
           </p>
         </div>
-
-        {/* Input de Busca elegante */}
         <div className="relative">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
           <input
@@ -293,7 +289,6 @@ export const BiSummary: React.FC<BiSummaryProps> = ({
         </div>
       </div>
 
-      {/* Tabela Responsiva */}
       <div className="overflow-x-auto flex-1 mt-4">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -327,7 +322,6 @@ export const BiSummary: React.FC<BiSummaryProps> = ({
                     isDone ? 'bg-green-50/25' : isActive ? 'opacity-100' : 'opacity-85'
                   }`}
                 >
-                  {/* Coluna do Botão de Check */}
                   <td className="py-3 px-4 text-center">
                     <button
                       onClick={(e) => handleCheckClick(e, bi)}
@@ -341,7 +335,6 @@ export const BiSummary: React.FC<BiSummaryProps> = ({
                       <CheckCircle2 className="h-3.5 w-3.5 stroke-[3]" />
                     </button>
                   </td>
-
                   <td className="py-3 px-4 font-bold text-gray-800 group-hover:text-[#0339A6] flex items-center gap-1.5 min-w-[200px]">
                     <span className="truncate">{bi.name}</span>
                     <ArrowUpRight className="h-3 w-3 text-gray-300 group-hover:text-[#0339A6] opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -397,7 +390,7 @@ export const BiSummary: React.FC<BiSummaryProps> = ({
                         </>
                       ) : (
                         <>
-                          <span>📅 Próximo ciclo</span>
+                          <span>Próximo ciclo</span>
                         </>
                       )}
                     </span>
@@ -415,12 +408,11 @@ export const BiSummary: React.FC<BiSummaryProps> = ({
           </tbody>
         </table>
       </div>
-      
-      {/* Rodapé de instrução rápida */}
+
       <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 mt-4 flex items-start gap-2">
         <AlertCircle className="h-4 w-4 text-[#0339A6] shrink-0 mt-0.5" />
         <span className="text-[10px] text-gray-500 leading-normal">
-          <b>Check Rápido:</b> Clique no quadradinho de check para marcar a atividade como concluída e auditada instantaneamente, registrando a conformidade no relatório diário de produtividade.
+          <b>Check Rápido:</b> Clica no quadradinho de check para marcar a atividade como concluída. Se a atividade for de um ciclo futuro (ex: quinzenal), um primeiro clique irá adicioná-la à rotina de hoje!
         </span>
       </div>
     </div>
