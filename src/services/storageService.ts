@@ -14,7 +14,6 @@ const defaultConfig: UserConfig = {
   enableDelayAlerts: true,
   soundEnabled: true,
   popupEnabled: true,
-
   outlookEnabled: false,
   dailyReportEnabled: true,
   alertOffsetMinutes: 0,
@@ -108,23 +107,24 @@ export const storageService = {
     return executions.sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
   },
 
+  // GRAVAÇÃO NA NUVEM COM AVISO DE ERRO
   async saveStateCloud(state: AppState): Promise<void> {
     try {
       const docRef = doc(db, 'rotinas', 'estado_karine');
       await setDoc(docRef, state);
     } catch (e) {
       console.error('Erro ao guardar no Firebase:', e);
+      // Este alerta é vital para sabermos se as Regras do Firestore estão a bloquear a escrita
+      alert(`Erro crítico: O Firebase bloqueou a gravação! Verifica as permissões (Rules). Detalhe: ${(e as Error).message}`);
     }
   },
 
-  // NOVA FUNÇÃO: Valida os dados antes de os colocar no ecrã
   processIncomingState(state: AppState): AppState {
     const todayStr = this.getTodayDateString();
     state.config = { ...defaultConfig, ...state.config };
     
     const hasTodayExecutions = state.executions && state.executions.length > 0 && state.executions[0].date === todayStr;
     
-    // Se mudámos de dia, arquivamos o dia de ontem e geramos um novo dia
     if (!hasTodayExecutions) {
       if (state.executions && state.executions.length > 0) {
         const oldDate = state.executions[0].date;
@@ -140,8 +140,6 @@ export const storageService = {
       }
       state.executions = this.generateDefaultExecutions(todayStr);
       state.currentExecutionId = null;
-      
-      // Força a atualização na nuvem do novo dia
       this.saveStateCloud(state);
     }
     return state;
@@ -154,11 +152,10 @@ export const storageService = {
       (docSnap) => {
         if (docSnap.exists()) {
           let state = docSnap.data() as AppState;
-          state = this.processIncomingState(state); // Validação de novo dia!
+          state = this.processIncomingState(state);
           this.saveState(state); // Backup local
           onSuccess(state);
         } else {
-          // Documento não existe (primeiro acesso)
           let newState = this.loadState();
           newState = this.processIncomingState(newState);
           this.saveStateCloud(newState);
@@ -174,7 +171,6 @@ export const storageService = {
     return unsubscribe;
   },
 
-  // (O resto mantém-se igual...)
   loadState(): AppState {
     const todayStr = this.getTodayDateString();
     try {
@@ -182,7 +178,7 @@ export const storageService = {
       if (serialized) {
         const state: AppState = JSON.parse(serialized);
         state.config = { ...defaultConfig, ...state.config };
-        return state; // Delegamos a validação de datas para o `processIncomingState`
+        return state;
       }
     } catch (e) {}
 
