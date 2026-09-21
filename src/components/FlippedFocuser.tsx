@@ -124,14 +124,14 @@ export const FlippedFocuser: React.FC<FlippedFocuserProps> = ({
           <div>
             <span className="text-xs text-[#F2B705] font-extrabold tracking-wider uppercase block">Atividade em Foco</span>
             <h1 className="font-sora font-black text-2xl text-white mt-1 leading-tight">{activity.name}</h1>
-            <p className="text-sm text-gray-400 mt-2 font-medium">{activity.objective}</p>
+            <p className="text-sm text-gray-400 mt-2 font-medium">{activity.objetivo}</p>
           </div>
 
           {/* Steps */}
           <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 space-y-4 shadow-xl">
             <h3 className="font-sora font-bold text-sm text-gray-200 border-b border-gray-700 pb-2">Procedimento de Execução</h3>
             <div className="space-y-3">
-              {activity.instructions.map((inst, idx) => (
+              {(activity.instrucoes || []).map((inst, idx) => (
                 <div key={idx} className="flex gap-3 items-start text-sm text-gray-300">
                   <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-900 text-xs font-bold text-[#F2B705]">
                     {idx + 1}

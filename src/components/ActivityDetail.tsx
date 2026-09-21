@@ -202,7 +202,7 @@ export const ActivityDetail: React.FC<ActivityDetailProps> = ({
         <div className="space-y-1">
           <h4 className="text-xs uppercase font-extrabold text-gray-400 tracking-wider">Objetivo Operacional</h4>
           <p className="text-sm text-gray-700 leading-relaxed bg-gray-50 p-3 rounded-lg border border-gray-100 font-medium">
-            {activity.objective || 'Sem descrição cadastrada.'}
+            {activity.objetivo || 'Sem descrição cadastrada.'}
           </p>
         </div>
 
@@ -210,7 +210,7 @@ export const ActivityDetail: React.FC<ActivityDetailProps> = ({
         <div className="space-y-2">
           <h4 className="text-xs uppercase font-extrabold text-gray-400 tracking-wider">Passo a Passo Normal</h4>
           <div className="space-y-2.5">
-            {activity.instructions.map((inst, idx) => (
+            {(activity.instrucoes || []).map((inst, idx) => (
               <div key={idx} className="flex gap-3 items-start text-sm text-gray-700 bg-white">
                 <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-[#0339A6]">
                   {idx + 1}
