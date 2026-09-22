@@ -14,12 +14,12 @@ export const routineActivities: Activity[] = [
     frequencia: 'DIARIA',
     recurrence: 'Diária', // retrocompatibilidade
     horario: [
-      '06:00', '07:50', '09:00', '10:50', '11:00', '12:50', 
-      '13:00', '14:50', '15:00', '16:50', '17:00', '17:50', '18:50'
+      '07:50','08:30', '09:00','10:20', '10:50', '11:00','12:20', '12:50', '13:00', '14:20',
+      '14:50', '15:00','15:20', '15:50','16:00','16:20','16:50','17:00','17:20','17:50'
     ],
     schedule: [
-      '06:00', '07:50', '09:00', '10:50', '11:00', '12:50', 
-      '13:00', '14:50', '15:00', '16:50', '17:00', '17:50', '18:50'
+      '07:50','08:30', '09:00','10:20', '10:50', '11:00','12:20', '12:50', '13:00', '14:20',
+      '14:50', '15:00','15:20', '15:50','16:00','16:20','16:50','17:00','17:20','17:50'
     ], // retrocompatibilidade
     diasSemana: ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'],
     ativo: true,
@@ -39,12 +39,15 @@ export const routineActivities: Activity[] = [
     diretorios: [
       '\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\7 - BASES DE RELATORIOS\\T22APRR - DIARIA',
       '\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\7 - BASES DE RELATORIOS\\T22APRR_PROC - DIARIA',
-      '\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\7 - BASES DE RELATORIOS\\T22APRR_VS - DIARIA'
+      '\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\7 - BASES DE RELATORIOS\\T22APRR_VS - DIARIA',
+      '\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\7 - BASES DE RELATORIOS\\T22APRR_TRANSF - DIARIA'
     ],
     arquivos: [
       'T22APRR.xlsx',
       'T22APRR_PROC.xlsx',
-      'T22APRR_VS.xlsx'
+      'T22APRR_VS.xlsx',
+      'T22APRR_TRANSF.xlsx'
+
     ],
     scripts: ['Orquestrador_APRR.bat'],
     contingencia: [
