@@ -389,8 +389,6 @@ export const routineActivities: Activity[] = [
     objetivo: 'Gerar os arquivos consolidados e atualizar os dados históricos de atendimento dos médicos.',
     instrucoes: [
       'Validar que T9033 e T22J3 foram recebidas na pasta 2026.',
-      'Abrir o arquivo Excel da base de Produtividade DGE.',
-      'Remover obrigatoriamente a coluna "Meta Tipo" da planilha antes do processamento.',
       'Verificar o status da atividade "Base Marcação Falta Espera" (deve estar como CONCLUÍDA).',
       'Executar no Alteryx o fluxo "01 - CONSOLIDAÇÃO BASE_T9033.yxmd".',
       'Executar o segundo fluxo Alteryx "02 - PROJETO_PAINEL DOS MEDICOS_V3.yxmd".',
