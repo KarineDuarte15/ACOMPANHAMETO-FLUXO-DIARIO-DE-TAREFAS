@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { storageService } from './services/storageService';
-import { teamsService } from './services/teamsService';
-import { outlookService } from './services/outlookService';
+import { sheetsService } from './services/sheetsService';
 import { routineActivities } from './data/activities';
 import { Execution, Activity, UserConfig, AppState, ExecutionStatus } from './types';
 import { 
@@ -52,9 +51,6 @@ export default function App() {
   const [modalExecution, setModalExecution] = useState<Execution | null>(null);
   const [tempCompletedExecId, setTempCompletedExecId] = useState<string | null>(null);
   const [tempElapsed, setTempElapsed] = useState<number>(0);
-
-  // Integration feedback messages
-  const [teamsStatus, setTeamsStatus] = useState<string>('Disponível');
 
   // Read-only / Viewer mode for managers
   const [isReadOnly, setIsReadOnly] = useState<boolean>(() => {
@@ -552,19 +548,8 @@ export default function App() {
     setModalExecution(finalizedExec);
     setModalType('congratulations');
 
-    // Trigger Integrations if enabled in Config
-    if (config.outlookEnabled) {
-      const { subject, body } = outlookService.buildActivityEmail(finalizedExec, act);
-      outlookService.sendEmail(config.email, subject, body, config.outlookEnabled);
-    }
-    if (config.teamsEnabled && config.teamsWebhookUrl) {
-      teamsService.sendNotification(finalizedExec, act, config.teamsWebhookUrl);
-    }
-
-    // Trigger Google Sheets automatic logging in real-time
-    if (config.googleSheetsEnabled && config.googleSheetsSpreadsheetId && googleToken) {
-      syncExecutionToSheets(finalizedExec, act);
-    }
+    // Trigger Google Sheets SheetDB automatic logging in real-time
+    sheetsService.appendRow(finalizedExec, act);
   };
 
   // SUBMIT DELAY FORM
@@ -681,32 +666,6 @@ export default function App() {
     }));
     setSelectedExecutionId(null);
     setIsFocoActive(false);
-  };
-
-  // TRIGGER MANUAL EMAIL REPORT
-  const handleManualEmailTrigger = () => {
-    const summary = storageService.calculateSummaryForExecutions(executions);
-    const { subject, body } = outlookService.buildDailyReportEmail(
-      storageService.getTodayDateString(),
-      summary,
-      executions,
-      routineActivities
-    );
-    outlookService.sendEmail(config.email, subject, body, config.outlookEnabled);
-    alert(`Relatório diário enviado com sucesso para ${config.email}!`);
-  };
-
-  // TRIGGER MANUAL TEAMS REPORT
-  const handleManualTeamsTrigger = () => {
-    if (!config.teamsWebhookUrl) {
-      alert('Por favor, configure o webhook do Teams na aba de Configurações primeiro!');
-      return;
-    }
-    setTeamsStatus('Enviando...');
-    setTimeout(() => {
-      setTeamsStatus('Enviado com sucesso');
-      alert('Cartão adaptativo de encerramento enviado ao canal do Teams!');
-    }, 1500);
   };
 
   // FORCE MANUAL EXECUTION CREATION
@@ -1130,9 +1089,6 @@ export default function App() {
                 <DailyReport
                   executions={executions}
                   activities={routineActivities}
-                  onTriggerEmail={handleManualEmailTrigger}
-                  onTriggerTeams={handleManualTeamsTrigger}
-                  teamsIntegrationStatus={teamsStatus}
                 />
               </div>
             )}

@@ -46,7 +46,7 @@ export const routineActivities: Activity[] = [
       'T22APRR.xlsx',
       'T22APRR_PROC.xlsx',
       'T22APRR_VS.xlsx',
-      'T22APRR_TRANSF.xlsx'
+      'T22APRR_TRANSF.xlsx',
       'teste'
 
     ],
