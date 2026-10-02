@@ -1166,5 +1166,118 @@ export const routineActivities: Activity[] = [
     condicaoErro: [],
     status: 'NAO_APLICAVEL',
     visibilidade: 'ARQUIVO'
+  },
+  {
+    id: 'bi-sac',
+    nome: 'BI SAC',
+    name: 'BI SAC',
+    biRelacionado: 'BI SAC',
+    categoria: 'BI',
+    category: 'BI',
+    prioridade: 'P1',
+    priority: 'high',
+    criticidade: 'ALTA',
+    frequencia: 'MENSAL',
+    recurrence: 'Mensal (2º Dia Útil)',
+    horario: ['08:30'],
+    schedule: ['08:30'],
+    diasSemana: ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'],
+    ativo: true,
+    tipoExecucao: 'MANUAL',
+    dependencia: [],
+    impacto: 'Acompanhamento mensal de atendimentos, reclamações e retornos do SAC.',
+    objetivo: 'Auditar e atualizar o painel do BI SAC no início do mês.',
+    instrucoes: [
+      'Baixar as bases consolidadas de atendimentos do SAC para o período necessário.',
+      'Executar a carga e atualização para o "fato de 6 meses" no modelo de dados.',
+      'Executar a carga e atualização para o "fato mes atual" para obter a visão mais recente.',
+      'Processar as informações no modelo analítico e publicar os resultados atualizados no Power BI Service.'
+    ],
+    diretorios: ['\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\1 - RELATORIOS\\SAC'],
+    arquivos: ['Bases_SAC.xlsx'],
+    scripts: [],
+    contingency: ['Em caso de erro de conexão com a base de SAC, extrair os dados via dump SQL de contingência e carregar manualmente no modelo desktop.'],
+    observacoes: ['Atualização obrigatória no 2º dia útil de cada mês. Garantir os 6 meses de histórico no fato de 6 meses.'],
+    regrasNegocio: [
+      'Fato de 6 meses deve conter exatamente os últimos 6 meses consolidados.',
+      'Fato do mês atual deve conter dados parciais D-1.'
+    ],
+    condicaoSucesso: ['BI SAC publicado e compartilhado com a diretoria.'],
+    condicaoErro: ['Erro de leitura por layout alterado ou falta de histórico do período.'],
+    status: 'PENDENTE',
+    visibilidade: 'AGENDA'
+  },
+  {
+    id: 'bi-farol-ich',
+    nome: 'BI Farol ICH (Produtividade DGE)',
+    name: 'BI Farol ICH (Produtividade DGE)',
+    biRelacionado: 'BI Farol ICH',
+    categoria: 'BI',
+    category: 'BI',
+    prioridade: 'P1',
+    priority: 'high',
+    criticidade: 'CRITICA',
+    frequencia: 'DIARIA',
+    recurrence: 'Diária (e Mensal até o 5º Útil)',
+    horario: ['09:00', '14:00'],
+    schedule: ['09:00', '14:00'],
+    diasSemana: ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'],
+    ativo: true,
+    tipoExecucao: 'SEMIAUTOMATICA',
+    dependencia: ['Base Marcação Falta Espera', 'T22J3'],
+    impacto: 'Medição crítica de produtividade médica corporativa da Hapvida por volume de atendimentos e consultas.',
+    objetivo: 'Extrair dados do Power BI, tratá-los via pipeline de 4 scripts Python de forma sequencial e importar para o banco Oracle na tabela BI_PRODUTIVIDADE.',
+    instrucoes: [
+      'Acessar o Power BI pelo link: https://app.powerbi.com/groups/me/reports/af0d5478-57e2-41ed-b9cb-3d7f5095610b/ReportSectiondf4f110712e68a20840b?ctid=77d68323-6f4b-460f-8aae-d32c654ec490&experience=power-bi',
+      'Confirmar que os dados exibidos estão atualizados pela data de atualização exibida no relatório.',
+      'Configurar filtros na aba "Resumo diário por médico": CLÍNICA/EMPRESA e HAPCLÍNICA marcados. Visão: Corporativo. Salvar em: \\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\7 - BASES DE RELATORIOS\\BASES DGE\\TIPO PAGAMENTO',
+      'Exportar dados do Power BI como .xlsx (padrão ProdutividadeDGE_AAAAMM.xlsx ou TipoPagDGE_AAAAMM.xlsx) divididos por mês (mês anterior até o 5º útil e mês atual de forma separada).',
+      'Salvar na pasta principal: \\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\7 - BASES DE RELATORIOS\\BASES DGE\\PRODUTIVIDADE. ATENÇÃO: Abrir o arquivo no Excel, clicar em "Habilitar Edição" e salvar novamente para que os scripts Python consigam ler!',
+      'Copiar arquivo para a pasta 48: \\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\1 - RELATORIOS\\48 - RELATORIO DE PRODUTIVIDADE V2\\DGE (substituir se necessário).',
+      'Executar sequencialmente na pasta \\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\25 - PYTHON\\BI_PRODUTIVIDADE os 4 scripts:',
+      '1º - 1_TratamentoDGE.py: Tratamento inicial e remoção das 3 últimas linhas de rodapé.',
+      '2º - 2_TratamentoBasesDGE.py: Consolidação, merge de TP_PGTO, limites T22J3, faltas, IBGE e geração de fProdutividade.parquet.',
+      '3º - 3_CriandoDimensao.py: Geração de dimensões dCidade, dEspecialidade (especialidades básicas: 39,2,1,etc) e dPrestador.',
+      '4º - 4_ImportarBanco.py: Insere/atualiza registros na tabela BI_PRODUTIVIDADE do Oracle (lotes de 10k, deleção inteligente do mês atual e anterior).',
+      'Atualizar o conjunto de dados no Power BI (pasta \\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\3 - ATUALIZAÇÃO PBIX) e enviar o retrato padrão do ICH para o grupo do time no Whatsapp.'
+    ],
+    diretorios: [
+      '\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\7 - BASES DE RELATORIOS\\BASES DGE\\TIPO PAGAMENTO',
+      '\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\7 - BASES DE RELATORIOS\\BASES DGE\\PRODUTIVIDADE',
+      '\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\1 - RELATORIOS\\48 - RELATORIO DE PRODUTIVIDADE V2\\DGE',
+      '\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\25 - PYTHON\\BI_PRODUTIVIDADE',
+      '\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\3 - ATUALIZAÇÃO PBIX'
+    ],
+    arquivos: [
+      'ProdutividadeDGE_AAAAMM.xlsx',
+      'TipoPagDGE_AAAAMM.xlsx',
+      'fProdutividade.parquet',
+      'dCidade.parquet',
+      'dEspecialidade.parquet',
+      'dPrestador.parquet'
+    ],
+    scripts: [
+      '1_TratamentoDGE.py',
+      '2_TratamentoBasesDGE.py',
+      '3_CriandoDimensao.py',
+      '4_ImportarBanco.py'
+    ],
+    contingency: [
+      'Se houver falha de rede/Alteryx/Banco, reprocessar forçando recriação total no Script 4 definindo a variável "forcar_recriar = True".',
+      'Caso de erro de layout: verificar se foram importadas colunas novas no Power BI e atualizar o Alteryx correspondente.'
+    ],
+    observacoes: [
+      'Lembrar sempre de "Habilitar Edição" no Excel antes de rodar os scripts python.',
+      'Especialidades básicas marcadas com BASICA_HAP = 1 para códigos: 39, 2, 1, 42, 4, 451, 455, 9, 50, 52, 51, 10, 56, 107.',
+      'Texto de envio padrão para Whatsapp está disponível na colagem de relatórios.'
+    ],
+    regrasNegocio: [
+      'Nunca pular a ordem dos 4 scripts python!',
+      'Na virada do mês, até o 5º útil, processar dados separados do mês anterior e atual.'
+    ],
+    condicaoSucesso: ['Inserção concluída com sucesso na tabela BI_PRODUTIVIDADE do banco Oracle.'],
+    condicaoErro: ['Scripts python quebram ou travam ao tentar abrir arquivo Excel sem habilitar edição.'],
+    status: 'PENDENTE',
+    visibilidade: 'AGENDA'
   }
 ];

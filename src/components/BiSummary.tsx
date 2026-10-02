@@ -188,6 +188,28 @@ export const BiSummary: React.FC<BiSummaryProps> = ({
       status: 'Próximo ciclo',
       activityId: 'listagem-vs',
     },
+    {
+      id: '15',
+      name: 'BI SAC',
+      priority: 'P1',
+      priorityLabel: '🟠 P1',
+      time: '08:30',
+      type: 'Mensal',
+      dependency: 'Bases SAC',
+      status: 'Pendente',
+      activityId: 'bi-sac',
+    },
+    {
+      id: '16',
+      name: 'BI Farol ICH (Produtividade DGE)',
+      priority: 'P1',
+      priorityLabel: '🟠 P1',
+      time: '09:00',
+      type: 'Manual',
+      dependency: 'SQL + Python',
+      status: 'Pendente',
+      activityId: 'bi-farol-ich',
+    },
   ];
 
   const handleRowClick = (item: BiItem) => {
