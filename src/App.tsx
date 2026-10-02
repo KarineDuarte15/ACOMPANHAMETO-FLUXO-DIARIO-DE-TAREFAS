@@ -732,9 +732,23 @@ export default function App() {
                 </span>
               </div>
             </div>
-            <span className="text-[10px] bg-white/20 border border-white/20 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider font-mono shrink-0">
-              🔒 Modo Seguro
-            </span>
+
+            {/* Blinking Pause Alert for the Manager when an active break is set */}
+            {appState.activeBreak ? (
+              <div className="flex items-center gap-2 bg-[#F21D2F] border border-red-500 px-3.5 py-2 rounded-lg animate-pulse text-white shadow-lg shrink-0">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+                </span>
+                <span className="text-xs font-black uppercase tracking-wider font-sora flex items-center gap-1.5">
+                  ⚠️ OPERADOR EM PAUSA: {appState.activeBreak === 'LUNCH' ? 'ALMOÇO 🥪' : 'CAFÉ ☕'}
+                </span>
+              </div>
+            ) : (
+              <span className="text-[10px] bg-white/20 border border-white/20 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider font-mono shrink-0">
+                🔒 Modo Seguro
+              </span>
+            )}
           </div>
         )}
 
