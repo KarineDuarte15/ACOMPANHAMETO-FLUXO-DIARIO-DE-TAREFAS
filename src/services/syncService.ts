@@ -12,14 +12,21 @@ export const syncService = {
   async saveStateToFirebase(dateStr: string, state: AppState): Promise<void> {
     try {
       const docRef = doc(db, COLLECTION_NAME, `state_${dateStr}`);
-      // Salvamos as propriedades essenciais que precisam ser sincronizadas
-      await setDoc(docRef, {
+      
+      const payload = {
         executions: state.executions || [],
         currentExecutionId: state.currentExecutionId || null,
         activeBreak: state.activeBreak || null,
         config: state.config || {},
         updatedAt: new Date().toISOString()
-      }, { merge: true });
+      };
+
+      // Limpar todos os campos 'undefined' recursivamente para evitar erros do Firestore
+      const sanitizedPayload = JSON.parse(
+        JSON.stringify(payload, (_, value) => (value === undefined ? null : value))
+      );
+
+      await setDoc(docRef, sanitizedPayload, { merge: true });
     } catch (error) {
       console.error('❌ Erro ao salvar estado no Firebase:', error);
     }
