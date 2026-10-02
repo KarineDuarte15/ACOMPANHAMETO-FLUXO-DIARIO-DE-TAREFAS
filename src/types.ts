@@ -104,9 +104,13 @@ export interface UserConfig {
   enableDelayAlerts: boolean;
   soundEnabled: boolean;
   popupEnabled: boolean;
+  teamsEnabled: boolean;
   outlookEnabled: boolean;
   dailyReportEnabled: boolean;
   alertOffsetMinutes: number; // e.g., 0 (on time), -5 (5 mins before)
+  teamsWebhookUrl: string;
+  googleSheetsSpreadsheetId?: string;
+  googleSheetsEnabled?: boolean;
 }
 
 export interface AppState {
@@ -114,6 +118,7 @@ export interface AppState {
   currentExecutionId: string | null; // currently running cronômetro
   history: HistoryDay[];
   config: UserConfig;
+  activeBreak?: 'LUNCH' | 'COFFEE' | null;
 }
 
 export interface Directory {

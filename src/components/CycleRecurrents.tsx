@@ -131,7 +131,7 @@ export const CycleRecurrents: React.FC<CycleRecurrentsProps> = ({
                   <div className="flex flex-wrap gap-3 text-[10px] text-gray-400 pt-1">
                     <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Horários: <b className="text-gray-600 font-mono">{activity.horario.join(', ')}</b></span>
                     <span>•</span>
-                    <span>Prazo: <b className="text-gray-600">{activity.prazo}</b></span>
+                    <span>Prazo: <b className="text-gray-600">{activity.estimatedTime || 'Sob Demanda'}</b></span>
                   </div>
                 </div>
 

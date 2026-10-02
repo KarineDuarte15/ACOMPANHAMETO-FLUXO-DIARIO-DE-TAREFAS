@@ -50,7 +50,7 @@ export const Indicators: React.FC<IndicatorsProps> = ({ executions, activities }
   }
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
       
       {/* Indicator Card: PROGRESS */}
       <div className="col-span-2 md:col-span-3 lg:col-span-2 bg-[#0339A6] text-white p-5 rounded-xl shadow-md border-b-4 border-[#F21D2F] flex flex-col justify-between relative overflow-hidden">
@@ -90,18 +90,6 @@ export const Indicators: React.FC<IndicatorsProps> = ({ executions, activities }
         <div className="mt-2">
           <span className="text-2xl font-extrabold font-sora block text-gray-800">{completed}</span>
           <span className="text-[10px] text-gray-400 block mt-0.5">Previstas: {total}</span>
-        </div>
-      </div>
-
-      {/* Indicator Card: DELAYED */}
-      <div className="bg-white p-4 rounded-xl shadow border border-gray-100 flex flex-col justify-between">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Em Atraso</span>
-          <AlertTriangle className={`h-5 w-5 ${delayed > 0 ? 'text-[#F24405] animate-pulse' : 'text-gray-300'}`} />
-        </div>
-        <div className="mt-2">
-          <span className="text-2xl font-extrabold font-sora block text-gray-800">{delayed}</span>
-          <span className="text-[10px] text-gray-400 block mt-0.5">Identificados</span>
         </div>
       </div>
 

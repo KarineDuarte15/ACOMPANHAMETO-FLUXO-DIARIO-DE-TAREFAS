@@ -131,7 +131,7 @@ export const FlippedFocuser: React.FC<FlippedFocuserProps> = ({
           <div className="bg-gray-800 rounded-xl p-5 border border-gray-700 space-y-4 shadow-xl">
             <h3 className="font-sora font-bold text-sm text-gray-200 border-b border-gray-700 pb-2">Procedimento de Execução</h3>
             <div className="space-y-3">
-              {(activity.instrucoes || []).map((inst, idx) => (
+              {activity.instrucoes.map((inst, idx) => (
                 <div key={idx} className="flex gap-3 items-start text-sm text-gray-300">
                   <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-900 text-xs font-bold text-[#F2B705]">
                     {idx + 1}
@@ -171,15 +171,40 @@ export const FlippedFocuser: React.FC<FlippedFocuserProps> = ({
           )}
         </div>
 
-        {/* Right: Big Chronometer Control */}
+        {/* Right: Active Status Control */}
         <div className="md:col-span-5 bg-gray-800 rounded-2xl border border-gray-700 p-6 shadow-2xl flex flex-col items-center justify-center text-center space-y-6">
           
           <div>
-            <span className="text-[10px] uppercase font-extrabold tracking-widest text-gray-500 block">Tempo Decorrido</span>
-            <span className="font-mono text-5xl font-black text-[#F2B705] tracking-tight block mt-1">
-              {formatTime(elapsed)}
-            </span>
-            <span className="text-xs font-bold text-gray-400 bg-gray-900 border border-gray-700 px-3 py-1 rounded-full inline-block mt-3">
+            <span className="text-[10px] uppercase font-extrabold tracking-widest text-gray-500 block">Status de Foco</span>
+            {isRunningThis ? (
+              <div className="flex flex-col items-center gap-2 mt-3">
+                <span className="text-3xl font-black text-green-400 tracking-tight block animate-pulse">
+                  EM EXECUÇÃO ⚡
+                </span>
+                <span className="text-xs font-medium text-gray-300">
+                  Iniciado às {execution.startedAt ? new Date(execution.startedAt).toLocaleTimeString('pt-BR') : '--:--'}
+                </span>
+              </div>
+            ) : isCompleted ? (
+              <div className="flex flex-col items-center gap-2 mt-3">
+                <span className="text-3xl font-black text-blue-400 tracking-tight block">
+                  CONCLUÍDO ✅
+                </span>
+                <span className="text-xs font-medium text-gray-300">
+                  Finalizado com sucesso
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 mt-3">
+                <span className="text-3xl font-black text-amber-400 tracking-tight block">
+                  PENDENTE 📋
+                </span>
+                <span className="text-xs font-medium text-gray-300">
+                  Aguardando início do procedimento
+                </span>
+              </div>
+            )}
+            <span className="text-xs font-bold text-gray-400 bg-gray-900 border border-gray-700 px-3 py-1 rounded-full inline-block mt-4">
               Previsto: {execution.scheduledTime}
             </span>
           </div>
@@ -191,7 +216,7 @@ export const FlippedFocuser: React.FC<FlippedFocuserProps> = ({
                 onClick={() => onStartExecution(execution.id)}
                 className="w-full py-4 rounded-xl text-sm font-bold bg-green-600 hover:bg-green-700 text-white transition shadow-lg flex items-center justify-center gap-1.5"
               >
-                <Play className="h-4.5 w-4.5" /> INICIAR CRONÔMETRO
+                <Play className="h-4.5 w-4.5" /> INICIAR ATIVIDADE
               </button>
             )}
 
@@ -200,19 +225,14 @@ export const FlippedFocuser: React.FC<FlippedFocuserProps> = ({
                 onClick={() => onPauseExecution(execution.id)}
                 className="w-full py-4 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white transition shadow-lg flex items-center justify-center gap-1.5 animate-pulse"
               >
-                <Pause className="h-4.5 w-4.5" /> PAUSAR CRONÔMETRO
+                <Pause className="h-4.5 w-4.5" /> PAUSAR EXECUÇÃO
               </button>
             )}
 
             {!isCompleted && (
               <button
                 onClick={() => onCompleteExecution(execution.id, elapsed)}
-                disabled={!execution.startedAt && elapsed === 0}
-                className={`w-full py-3.5 rounded-xl text-sm font-bold transition shadow flex items-center justify-center gap-1.5 ${
-                  !execution.startedAt && elapsed === 0
-                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                    : 'bg-[#0339A6] hover:bg-[#122A44] text-white'
-                }`}
+                className="w-full py-3.5 rounded-xl text-sm font-bold transition shadow flex items-center justify-center gap-1.5 bg-[#0339A6] hover:bg-[#122A44] text-white"
               >
                 <Check className="h-4.5 w-4.5" /> FINALIZAR ATIVIDADE
               </button>
