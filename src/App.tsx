@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { storageService } from './services/storageService';
 import { sheetsService } from './services/sheetsService';
+import { syncService } from './services/syncService';
 import { routineActivities } from './data/activities';
 import { Execution, Activity, UserConfig, AppState, ExecutionStatus } from './types';
 import { 
@@ -256,6 +257,30 @@ export default function App() {
       storageService.saveState(appState);
     }
   }, [appState, isReadOnly]);
+
+  // Sync state to Firebase in real-time when changed (only for operator)
+  useEffect(() => {
+    if (isReadOnly) return;
+    const todayStr = storageService.getTodayDateString();
+    syncService.saveStateToFirebase(todayStr, appState);
+  }, [appState, isReadOnly]);
+
+  // Subscribe to Firebase real-time updates (critical for Gestor View / synchronizing screens)
+  useEffect(() => {
+    const todayStr = storageService.getTodayDateString();
+    const unsubscribe = syncService.subscribeToState(todayStr, (data) => {
+      if (isReadOnly && data) {
+        setAppState(prev => ({
+          ...prev,
+          executions: data.executions || prev.executions,
+          currentExecutionId: data.currentExecutionId !== undefined ? data.currentExecutionId : prev.currentExecutionId,
+          activeBreak: data.activeBreak !== undefined ? data.activeBreak : prev.activeBreak,
+          config: { ...prev.config, ...data.config }
+        }));
+      }
+    });
+    return () => unsubscribe();
+  }, [isReadOnly]);
 
   // Keep digital clock ticking
   useEffect(() => {
