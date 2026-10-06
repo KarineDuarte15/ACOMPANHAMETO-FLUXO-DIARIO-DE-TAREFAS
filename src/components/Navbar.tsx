@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { 
   LayoutDashboard, Calendar, BarChart3, FolderGit2, CalendarRange, 
   Settings, Volume2, VolumeX, Eye, ShieldAlert,
-  ChevronLeft, ChevronRight, Menu, X, Sparkles, UserCheck
+  ChevronLeft, ChevronRight, Menu, X, Sparkles, UserCheck, LogOut
 } from 'lucide-react';
 import { User, TeamSettings } from '../types';
 
@@ -19,6 +19,7 @@ interface NavbarProps {
   setCurrentUser: (user: User) => void;
   users: User[];
   teamSettings: TeamSettings;
+  onLogout: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -32,7 +33,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   setCurrentUser,
   users,
-  teamSettings
+  teamSettings,
+  onLogout
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -119,6 +121,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             title={soundEnabled ? 'Silenciar' : 'Ativar som'}
           >
             {soundEnabled ? <Volume2 className="h-4 w-4 text-[#F2B705]" /> : <VolumeX className="h-4 w-4 opacity-50" />}
+          </button>
+
+          {/* Secure Logout Toggle */}
+          <button
+            onClick={onLogout}
+            className="p-1.5 rounded bg-red-600/20 text-red-300 border border-red-500/20 hover:bg-red-600 hover:text-white transition"
+            title="Sair do Sistema"
+          >
+            <LogOut className="h-4 w-4" />
           </button>
           
           {/* Menu Button */}
@@ -271,13 +282,22 @@ export const Navbar: React.FC<NavbarProps> = ({
               {isExpanded && (
                 <span className="text-[9px] text-[#F2B705] font-black tracking-widest uppercase">Optimus BI</span>
               )}
-              <button
-                onClick={toggleSound}
-                className="p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white transition border border-white/10"
-                title={soundEnabled ? 'Silenciar alertas' : 'Habilitar som'}
-              >
-                {soundEnabled ? <Volume2 className="h-3.5 w-3.5 text-[#F2B705]" /> : <VolumeX className="h-3.5 w-3.5 opacity-50" />}
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={toggleSound}
+                  className="p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white transition border border-white/10"
+                  title={soundEnabled ? 'Silenciar alertas' : 'Habilitar som'}
+                >
+                  {soundEnabled ? <Volume2 className="h-3.5 w-3.5 text-[#F2B705]" /> : <VolumeX className="h-3.5 w-3.5 opacity-50" />}
+                </button>
+                <button
+                  onClick={onLogout}
+                  className="p-1.5 rounded-md bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white transition border border-red-500/20"
+                  title="Sair da Sessão Segura"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           </div>
         </div>

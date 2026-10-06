@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { storageService } from './services/storageService';
 import { sheetsService } from './services/sheetsService';
 import { syncService } from './services/syncService';
+import { auth } from './services/firebase';
 import { routineActivities } from './data/activities';
 import { Execution, Activity, UserConfig, AppState, ExecutionStatus, User, TeamSettings } from './types';
 import { 
@@ -30,6 +31,8 @@ import { MonthlyMilestones } from './components/MonthlyMilestones';
 import { CycleRecurrents } from './components/CycleRecurrents';
 import { BiSummary } from './components/BiSummary';
 import { AdminPanel } from './components/AdminPanel';
+import { authService } from './services/authService';
+import { LoginScreen } from './components/LoginScreen';
 
 // Icon imports
 import { 
@@ -55,6 +58,10 @@ export default function App() {
   };
   const activities = appState.activities || [];
 
+  // Estados de sessão real e segura (Firebase Auth + Firestore Profile)
+  const [sessionUser, setSessionUser] = useState<any>(null);
+  const [isSessionChecking, setIsSessionChecking] = useState(true);
+
   // Usuário atualmente autenticado / logado (Karine como padrão inicial)
   const [currentUser, setCurrentUser] = useState<User>(() => {
     return users.find(u => u.id === 'karine') || users[0];
@@ -65,17 +72,87 @@ export default function App() {
     return currentUser.id;
   });
 
+  // Listener de sessão segura em tempo real conectando Firebase Auth ao Firestore
+  useEffect(() => {
+    const unsubscribe = authService.onSessionChange(async (authUser) => {
+      setIsSessionChecking(true);
+      if (authUser) {
+        try {
+          const profile = await authService.getProfile(authUser.uid);
+          
+          if (profile) {
+            if (profile.ativo) {
+              setSessionUser(authUser);
+              setCurrentUser(profile);
+              setViewingUserId(profile.id);
+            } else {
+              alert("Seu acesso foi desativado. Entre em contato com um administrador.");
+              await authService.logout();
+              setSessionUser(null);
+            }
+          } else {
+            // Se o perfil no banco não existir (ex: primeiro login), cria um com base no e-mail seguro
+            const email = authUser.email || '';
+            const isKarine = email.includes('karine');
+            const isAgenor = email.includes('agenor');
+            const isAdmin = isKarine || isAgenor;
+            
+            const newProfile: User = {
+              id: authUser.uid,
+              nome: isKarine ? 'Karine' : isAgenor ? 'Agenor' : email.split('@')[0].toUpperCase(),
+              email: email,
+              role: isAdmin ? 'ADMIN' : 'USER',
+              ativo: true
+            };
+            
+            await authService.saveProfile(newProfile);
+            setSessionUser(authUser);
+            setCurrentUser(newProfile);
+            setViewingUserId(newProfile.id);
+          }
+        } catch (e) {
+          console.error("Erro ao sincronizar sessão segura:", e);
+          setSessionUser(null);
+        }
+      } else {
+        setSessionUser(null);
+      }
+      setIsSessionChecking(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Realiza o logout de forma segura e limpa dados sensíveis
+  const handleLogout = async () => {
+    try {
+      await authService.logout(currentUser.id);
+      setSessionUser(null);
+      setCurrentUser({ id: "", nome: "", role: "USER", ativo: false });
+      setViewingUserId("");
+      setCurrentTab("dashboard");
+    } catch (e) {
+      console.error("Erro ao realizar logout:", e);
+    }
+  };
+
   // Garante que se o usuário mudar e ele não for ADMIN, ele só poderá ver a si mesmo!
   useEffect(() => {
-    if (currentUser.role !== 'ADMIN') {
+    if (currentUser.id && currentUser.role !== 'ADMIN') {
       setViewingUserId(currentUser.id);
     }
   }, [currentUser]);
-  
+
   // Navigation
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [isFocoActive, setIsFocoActive] = useState(false);
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
+
+  // Proteção rígida contra tentativas de acesso direto de rotas administrativas
+  useEffect(() => {
+    if (currentTab === 'admin' && currentUser.role !== 'ADMIN') {
+      setCurrentTab('dashboard');
+    }
+  }, [currentTab, currentUser]);
 
   // Modal / Dialogue States
   const [modalType, setModalType] = useState<'alert' | 'delay_prompt' | 'congratulations' | null>(null);
@@ -760,6 +837,35 @@ export default function App() {
     });
   };
 
+  if (isSessionChecking) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-t-[#0339A6] border-gray-200 mx-auto" />
+          <p className="text-sm font-bold text-gray-700 font-sora animate-pulse">
+            Verificando sessão segura da Optimus BI...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!sessionUser) {
+    return (
+      <LoginScreen
+        onLoginSuccess={async (uid) => {
+          const profile = await authService.getProfile(uid);
+          if (profile) {
+            setSessionUser(auth.currentUser);
+            setCurrentUser(profile);
+            setViewingUserId(profile.id);
+          }
+        }}
+        teamSettings={teamSettings}
+      />
+    );
+  }
+
   return (
     <div 
       className="min-h-screen flex flex-col lg:flex-row font-inter transition-colors duration-200"
@@ -819,6 +925,7 @@ export default function App() {
         setCurrentUser={setCurrentUser}
         users={users}
         teamSettings={teamSettings}
+        onLogout={handleLogout}
       />
 
       {/* RIGHT WORKSPACE PANELS CONTAINER */}
