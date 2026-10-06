@@ -2,9 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { storageService } from './services/storageService';
 import { sheetsService } from './services/sheetsService';
 import { syncService } from './services/syncService';
-import { auth } from './services/firebase';
 import { routineActivities } from './data/activities';
-import { Execution, Activity, UserConfig, AppState, ExecutionStatus, User, TeamSettings } from './types';
+import { Execution, Activity, UserConfig, AppState, ExecutionStatus } from './types';
 import { 
   googleSheetsService, 
   initGoogleAuth, 
@@ -30,9 +29,6 @@ import { DirectoriesPanel } from './components/DirectoriesPanel';
 import { MonthlyMilestones } from './components/MonthlyMilestones';
 import { CycleRecurrents } from './components/CycleRecurrents';
 import { BiSummary } from './components/BiSummary';
-import { AdminPanel } from './components/AdminPanel';
-import { authService } from './services/authService';
-import { LoginScreen } from './components/LoginScreen';
 
 // Icon imports
 import { 
@@ -44,115 +40,11 @@ export default function App() {
   // Main state loaded from storageService
   const [appState, setAppState] = useState<AppState>(() => storageService.loadState());
   const [currentTime, setCurrentTime] = useState(new Date());
-
-  // Dados centrais dinâmicos da equipe Optimus BI
-  const users = appState.users || [];
-  const teamSettings = appState.teamSettings || {
-    teamName: "Rotina Inteligente Optimus BI",
-    logoUrl: "",
-    logoAlt: "Logo Rotina Inteligente Optimus BI",
-    primaryColor: "#0339A6",
-    secondaryColor: "#F21D2F",
-    accentColor: "#F2B705",
-    backgroundColor: "#F2F2F2"
-  };
-  const activities = appState.activities || [];
-
-  // Estados de sessão real e segura (Firebase Auth + Firestore Profile)
-  const [sessionUser, setSessionUser] = useState<any>(null);
-  const [isSessionChecking, setIsSessionChecking] = useState(true);
-
-  // Usuário atualmente autenticado / logado (Karine como padrão inicial)
-  const [currentUser, setCurrentUser] = useState<User>(() => {
-    return users.find(u => u.id === 'karine') || users[0];
-  });
-
-  // ID do usuário do qual estamos visualizando a rotina (por padrão, o mesmo logado)
-  const [viewingUserId, setViewingUserId] = useState<string>(() => {
-    return currentUser.id;
-  });
-
-  // Listener de sessão segura em tempo real conectando Firebase Auth ao Firestore
-  useEffect(() => {
-    const unsubscribe = authService.onSessionChange(async (authUser) => {
-      setIsSessionChecking(true);
-      if (authUser) {
-        try {
-          const profile = await authService.getProfile(authUser.uid);
-          
-          if (profile) {
-            if (profile.ativo) {
-              setSessionUser(authUser);
-              setCurrentUser(profile);
-              setViewingUserId(profile.id);
-            } else {
-              alert("Seu acesso foi desativado. Entre em contato com um administrador.");
-              await authService.logout();
-              setSessionUser(null);
-            }
-          } else {
-            // Se o perfil no banco não existir (ex: primeiro login), cria um com base no e-mail seguro
-            const email = authUser.email || '';
-            const isKarine = email.includes('karine');
-            const isAgenor = email.includes('agenor');
-            const isAdmin = isKarine || isAgenor;
-            
-            const newProfile: User = {
-              id: authUser.uid,
-              nome: isKarine ? 'Karine' : isAgenor ? 'Agenor' : email.split('@')[0].toUpperCase(),
-              email: email,
-              role: isAdmin ? 'ADMIN' : 'USER',
-              ativo: true
-            };
-            
-            await authService.saveProfile(newProfile);
-            setSessionUser(authUser);
-            setCurrentUser(newProfile);
-            setViewingUserId(newProfile.id);
-          }
-        } catch (e) {
-          console.error("Erro ao sincronizar sessão segura:", e);
-          setSessionUser(null);
-        }
-      } else {
-        setSessionUser(null);
-      }
-      setIsSessionChecking(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Realiza o logout de forma segura e limpa dados sensíveis
-  const handleLogout = async () => {
-    try {
-      await authService.logout(currentUser.id);
-      setSessionUser(null);
-      setCurrentUser({ id: "", nome: "", role: "USER", ativo: false });
-      setViewingUserId("");
-      setCurrentTab("dashboard");
-    } catch (e) {
-      console.error("Erro ao realizar logout:", e);
-    }
-  };
-
-  // Garante que se o usuário mudar e ele não for ADMIN, ele só poderá ver a si mesmo!
-  useEffect(() => {
-    if (currentUser.id && currentUser.role !== 'ADMIN') {
-      setViewingUserId(currentUser.id);
-    }
-  }, [currentUser]);
-
+  
   // Navigation
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [isFocoActive, setIsFocoActive] = useState(false);
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
-
-  // Proteção rígida contra tentativas de acesso direto de rotas administrativas
-  useEffect(() => {
-    if (currentTab === 'admin' && currentUser.role !== 'ADMIN') {
-      setCurrentTab('dashboard');
-    }
-  }, [currentTab, currentUser]);
 
   // Modal / Dialogue States
   const [modalType, setModalType] = useState<'alert' | 'delay_prompt' | 'congratulations' | null>(null);
@@ -398,35 +290,22 @@ export default function App() {
     return () => clearInterval(clockInterval);
   }, []);
 
-  // Filtrar atividades do usuário selecionado para visualização
-  const userActivities = useMemo(() => {
-    return activities.filter(a => a.usuarioId === viewingUserId);
-  }, [activities, viewingUserId]);
-
-  // Filtrar execuções do usuário selecionado para visualização
-  const userExecutions = useMemo(() => {
-    return appState.executions.filter(e => {
-      const act = activities.find(a => a.id === e.activityId);
-      return act && act.usuarioId === viewingUserId;
-    });
-  }, [appState.executions, activities, viewingUserId]);
-
   // Update document title dynamically depending on active execution
   useEffect(() => {
     const activeExec = appState.executions.find(e => e.status === 'EM_EXECUCAO');
     if (activeExec) {
-      const act = activities.find(a => a.id === activeExec.activityId);
-      document.title = `⏱️ [Ativo: ${activeExec.scheduledTime}] - ${act?.nome || act?.name || 'Rotina'} | ${teamSettings.teamName}`;
+      const act = routineActivities.find(a => a.id === activeExec.activityId);
+      document.title = `⏱️ [Ativo: ${activeExec.scheduledTime}] - ${act?.name || 'Rotina'} | Rotina Inteligente`;
     } else {
-      const pendingCount = userExecutions.filter(e => e.status === 'PENDENTE' || e.status === 'ATRASADO').length;
+      const pendingCount = appState.executions.filter(e => e.status === 'PENDENTE' || e.status === 'ATRASADO').length;
       document.title = pendingCount > 0 
-        ? `📋 (${pendingCount}) Rotinas | ${teamSettings.teamName}`
-        : `🎉 Tudo Pronto! | ${teamSettings.teamName}`;
+        ? `📋 (${pendingCount}) Rotinas Pendentes | Rotina Inteligente`
+        : '🎉 Tudo Pronto! | Rotina Inteligente';
     }
-  }, [appState.executions, activities, teamSettings.teamName, userExecutions]);
+  }, [appState.executions]);
 
   // Derived state selections
-  const executions = userExecutions; // Atribui as execuções filtradas do usuário atual
+  const executions = appState.executions;
   const config = appState.config;
   const history = appState.history;
 
@@ -438,8 +317,8 @@ export default function App() {
 
   const selectedActivity = useMemo(() => {
     if (!selectedExecution) return null;
-    return activities.find(a => a.id === selectedExecution.activityId) || null;
-  }, [selectedExecution, activities]);
+    return routineActivities.find(a => a.id === selectedExecution.activityId) || null;
+  }, [selectedExecution]);
 
   // Identify active execution (if any)
   const activeExecution = useMemo(() => {
@@ -448,8 +327,8 @@ export default function App() {
 
   const activeActivity = useMemo(() => {
     if (!activeExecution) return null;
-    return activities.find(a => a.id === activeExecution.activityId) || null;
-  }, [activeExecution, activities]);
+    return routineActivities.find(a => a.id === activeExecution.activityId) || null;
+  }, [activeExecution]);
 
   // Select next upcoming execution for Spotlight Card
   const nextSpotlightExecution = useMemo(() => {
@@ -468,8 +347,8 @@ export default function App() {
 
   const nextSpotlightActivity = useMemo(() => {
     if (!nextSpotlightExecution) return null;
-    return activities.find(a => a.id === nextSpotlightExecution.activityId) || null;
-  }, [nextSpotlightExecution, activities]);
+    return routineActivities.find(a => a.id === nextSpotlightExecution.activityId) || null;
+  }, [nextSpotlightExecution]);
 
   // Calculate next execution after the spotlight for Modo Foco
   const nextUpcomingExecution = useMemo(() => {
@@ -483,8 +362,8 @@ export default function App() {
 
   const nextUpcomingActivity = useMemo(() => {
     if (!nextUpcomingExecution) return null;
-    return activities.find(a => a.id === nextUpcomingExecution.activityId) || null;
-  }, [nextUpcomingExecution, activities]);
+    return routineActivities.find(a => a.id === nextUpcomingExecution.activityId) || null;
+  }, [nextUpcomingExecution]);
 
   // TIMER / CRONÔMETRO EVENTS
   const startExecution = (execId: string) => {
@@ -837,75 +716,13 @@ export default function App() {
     });
   };
 
-  if (isSessionChecking) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-t-[#0339A6] border-gray-200 mx-auto" />
-          <p className="text-sm font-bold text-gray-700 font-sora animate-pulse">
-            Verificando sessão segura da Optimus BI...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!sessionUser) {
-    return (
-      <LoginScreen
-        onLoginSuccess={async (uid) => {
-          const profile = await authService.getProfile(uid);
-          if (profile) {
-            setSessionUser(auth.currentUser);
-            setCurrentUser(profile);
-            setViewingUserId(profile.id);
-          }
-        }}
-        teamSettings={teamSettings}
-      />
-    );
-  }
-
   return (
-    <div 
-      className="min-h-screen flex flex-col lg:flex-row font-inter transition-colors duration-200"
-      style={{ backgroundColor: teamSettings.backgroundColor }}
-    >
-      <style>{`
-        #sidebar-navigation {
-          background-color: ${teamSettings.primaryColor} !important;
-          border-right-color: ${teamSettings.primaryColor}33 !important;
-        }
-        .text-[#0339A6] {
-          color: ${teamSettings.primaryColor} !important;
-        }
-        .bg-[#0339A6] {
-          background-color: ${teamSettings.primaryColor} !important;
-        }
-        .border-[#0339A6] {
-          border-color: ${teamSettings.primaryColor} !important;
-        }
-        .from-[#0339A6] {
-          --tw-gradient-from: ${teamSettings.primaryColor} !important;
-        }
-        .to-[#022b80] {
-          --tw-gradient-to: ${teamSettings.secondaryColor} !important;
-        }
-        .text-[#F2B705] {
-          color: ${teamSettings.accentColor} !important;
-        }
-        .bg-[#F2B705] {
-          background-color: ${teamSettings.accentColor} !important;
-        }
-        .bg-[#F21D2F] {
-          background-color: ${teamSettings.secondaryColor} !important;
-        }
-      `}</style>
+    <div className="min-h-screen bg-[#F2F2F2] flex flex-col lg:flex-row font-inter">
       
       {/* Background Active Scheduler (Silent Web Audio chime inside) */}
       <SchedulerAlerts
         executions={executions}
-        activities={activities}
+        activities={routineActivities}
         soundEnabled={config.soundEnabled}
         onTriggerAlert={handleSchedulerAlertTrigger}
         alertOffsetMinutes={config.alertOffsetMinutes}
@@ -921,11 +738,6 @@ export default function App() {
         isFocoActive={isFocoActive}
         setIsFocoActive={setIsFocoActive}
         isReadOnly={isReadOnly}
-        currentUser={currentUser}
-        setCurrentUser={setCurrentUser}
-        users={users}
-        teamSettings={teamSettings}
-        onLogout={handleLogout}
       />
 
       {/* RIGHT WORKSPACE PANELS CONTAINER */}
@@ -1022,7 +834,7 @@ export default function App() {
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-2">
                       <h1 className="font-sora font-black text-2xl text-gray-900 leading-tight">
-                        Bom dia, {currentUser.nome}! 👋
+                        Bom dia, {config.name}! 👋
                       </h1>
                       {!isReadOnly && (
                         <button
@@ -1039,7 +851,7 @@ export default function App() {
                       )}
                     </div>
                     <p className="text-xs text-gray-500 mt-1 max-w-xl">
-                      Seu cockpit inteligente para controle e auditoria de processos e BIs da equipe {teamSettings.teamName}.
+                      Seu cockpit inteligente para controle e auditoria da rotina de faturamento da retaguarda Hapvida.
                     </p>
                   </div>
 
@@ -1152,7 +964,7 @@ export default function App() {
                 )}
 
                 {/* KEY STATS INDICATORS BAR */}
-                <Indicators executions={executions} activities={userActivities} />
+                <Indicators executions={executions} activities={routineActivities} />
 
                 {/* CORE DASHBOARD GRID: LEFT RESUMO BIs / RIGHT INSTRUCTIONS */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -1161,7 +973,7 @@ export default function App() {
                   <div className="lg:col-span-8 flex flex-col">
                     <BiSummary
                       executions={executions}
-                      activities={userActivities}
+                      activities={routineActivities}
                       onSelectExecution={(execId) => setSelectedExecutionId(execId)}
                       onForceCreateExecution={handleForceCreateExecution}
                       onCompleteExecution={completeExecution}
@@ -1209,7 +1021,7 @@ export default function App() {
               <div className="animate-fade-in">
                 <Timeline
                   executions={executions}
-                  activities={userActivities}
+                  activities={routineActivities}
                   onStartExecution={startExecution}
                   onPauseExecution={pauseExecution}
                   onResetExecution={resetExecution}
@@ -1227,7 +1039,7 @@ export default function App() {
             {currentTab === 'bis' && (
               <BisTable
                 executions={executions}
-                activities={userActivities}
+                activities={routineActivities}
                 onStartExecution={startExecution}
                 onPauseExecution={pauseExecution}
                 onResetExecution={resetExecution}
@@ -1244,7 +1056,7 @@ export default function App() {
             {/* TAB: DIRECTORIES (MAPA DE PASTAS E SERVIDORES) */}
             {currentTab === 'directories' && (
               <DirectoriesPanel
-                activities={userActivities}
+                activities={routineActivities}
                 onSelectExecutionByActivityId={(actId) => {
                   const exec = executions.find(e => e.activityId === actId);
                   if (exec) {
@@ -1263,7 +1075,7 @@ export default function App() {
             {currentTab === 'marcos' && (
               <MonthlyMilestones
                 executions={executions}
-                activities={userActivities}
+                activities={routineActivities}
                 onForceCreateExecution={handleForceCreateExecution}
                 onSelectExecutionByActivityId={(actId) => {
                   const exec = executions.find(e => e.activityId === actId);
@@ -1279,15 +1091,45 @@ export default function App() {
               />
             )}
 
-            {/* TAB: ADMIN (CENTRAL DE ADMINISTRAÇÃO DA ROTINA) */}
-            {currentTab === 'admin' && (
-              <AdminPanel
-                appState={appState}
-                setAppState={setAppState}
-                currentUser={currentUser}
-                viewingUserId={viewingUserId}
-                setViewingUserId={setViewingUserId}
+            {/* TAB: RECORRENTES E CICLOS */}
+            {currentTab === 'ciclos' && (
+              <CycleRecurrents
+                executions={executions}
+                activities={routineActivities}
+                onForceCreateExecution={handleForceCreateExecution}
+                onSelectExecutionByActivityId={(actId) => {
+                  const exec = executions.find(e => e.activityId === actId);
+                  if (exec) {
+                    setSelectedExecutionId(exec.id);
+                    setCurrentTab('dashboard');
+                  } else {
+                    handleForceCreateExecution(actId, '12:00');
+                    alert('Atividade de ciclo selecionada com sucesso. Uma execução manual correspondente foi criada para auditoria.');
+                    setCurrentTab('dashboard');
+                  }
+                }}
               />
+            )}
+
+            {/* TAB: HISTÓRICO LOGS */}
+            {currentTab === 'history' && (
+              <div className="animate-fade-in">
+                <HistoryView
+                  history={history}
+                  todayExecutions={executions}
+                  activities={routineActivities}
+                />
+              </div>
+            )}
+
+            {/* TAB: PRODUCTIVITY REPORT */}
+            {currentTab === 'reports' && (
+              <div className="animate-fade-in">
+                <DailyReport
+                  executions={executions}
+                  activities={routineActivities}
+                />
+              </div>
             )}
 
             {/* TAB: SETTINGS PANEL */}
@@ -1314,8 +1156,8 @@ export default function App() {
         {/* FOOTER */}
         <footer className="bg-white border-t border-gray-200 mt-auto py-6 text-center text-xs text-gray-400 print:hidden">
           <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <span><b>{teamSettings.teamName}</b> · Copiloto de Rotina e Produtividade</span>
-            <span>Central de Governança e Processos · Optimus BI</span>
+            <span><b>Rotina Inteligente</b> · Copiloto Corporativo de Produtividade</span>
+            <span>Desenvolvido para auditoria interna da retaguarda Hapvida · Karine</span>
           </div>
         </footer>
 
