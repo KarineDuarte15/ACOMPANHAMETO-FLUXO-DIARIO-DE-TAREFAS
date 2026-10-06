@@ -35,6 +35,7 @@ export interface Activity {
   condicaoSucesso: string[];
   condicaoErro: string[];
   status: 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDA' | 'ATRASADA' | 'BLOQUEADA' | 'NAO_APLICAVEL';
+  usuarioId?: string; // ID do usuário (opcional para retrocompatibilidade)
   horarioPrevisto?: string;
   iniciadoEm?: string;
   concluidoEm?: string;
@@ -97,6 +98,27 @@ export interface HistoryDay {
   };
 }
 
+export type UserRole = 'ADMIN' | 'USER';
+
+export interface User {
+  id: string;
+  nome: string;
+  email?: string;
+  role: UserRole;
+  ativo: boolean;
+  avatarUrl?: string;
+}
+
+export interface TeamSettings {
+  teamName: string;
+  logoUrl: string;
+  logoAlt: string;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  backgroundColor: string;
+}
+
 export interface UserConfig {
   name: string;
   email: string;
@@ -119,6 +141,9 @@ export interface AppState {
   history: HistoryDay[];
   config: UserConfig;
   activeBreak?: 'LUNCH' | 'COFFEE' | null;
+  users?: User[]; // Adicionado para multiusuário
+  teamSettings?: TeamSettings; // Adicionado para identidade visual da equipe
+  activities?: Activity[]; // Adicionado para persistência de rotinas customizadas
 }
 
 export interface Directory {

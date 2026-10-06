@@ -1,4 +1,4 @@
-import { AppState, Execution, UserConfig, HistoryDay, ExecutionStatus, Directory } from '../types';
+import { AppState, Execution, UserConfig, HistoryDay, ExecutionStatus, Directory, User, TeamSettings, Activity } from '../types';
 import { routineActivities } from '../data/activities';
 
 const STORAGE_KEY = 'rotina_inteligente_state_v1';
@@ -17,6 +17,23 @@ const defaultConfig: UserConfig = {
   teamsWebhookUrl: '',
   googleSheetsSpreadsheetId: '',
   googleSheetsEnabled: false
+};
+
+const initialUsers: User[] = [
+  { id: "karine", nome: "Karine", role: "ADMIN", ativo: true },
+  { id: "agenor", nome: "Agenor", role: "ADMIN", ativo: true },
+  { id: "miller", nome: "Miller", role: "USER", ativo: true },
+  { id: "daniel", nome: "Daniel", role: "USER", ativo: true }
+];
+
+const initialTeamSettings: TeamSettings = {
+  teamName: "Rotina Inteligente Optimus BI",
+  logoUrl: "",
+  logoAlt: "Logo Rotina Inteligente Optimus BI",
+  primaryColor: "#0339A6",
+  secondaryColor: "#F21D2F",
+  accentColor: "#F2B705",
+  backgroundColor: "#F2F2F2"
 };
 
 export const storageService = {
@@ -55,7 +72,7 @@ export const storageService = {
     return tempDate.getMonth() !== currentMonth;
   },
 
-  generateDefaultExecutions(dateStr: string): Execution[] {
+  generateDefaultExecutions(dateStr: string, activitiesList?: Activity[]): Execution[] {
     const executions: Execution[] = [];
     const dateObj = new Date(dateStr + 'T12:00:00');
     const dayOfMonth = dateObj.getDate();
@@ -65,7 +82,10 @@ export const storageService = {
     const nthBusinessDay = this.getBusinessDayOfMonth(dateObj);
     const isLastDay = this.isLastDayOfMonth(dateObj);
     
-    routineActivities.forEach(activity => {
+    // Fallback para routineActivities se activitiesList for indefinido
+    const targetActivities = activitiesList || routineActivities.map(a => ({ ...a, usuarioId: 'karine' }));
+
+    targetActivities.forEach(activity => {
       // 1. Pular atividades inativas ou arquivadas
       if (!activity.ativo || activity.visibilidade === 'ARQUIVO') {
         return;
@@ -116,7 +136,7 @@ export const storageService = {
       if (isApplicable) {
         activity.horario.forEach(time => {
           executions.push({
-            id: `${activity.id}-${time}`,
+            id: `${activity.id}-${time}-${activity.usuarioId}`,
             activityId: activity.id,
             date: dateStr,
             scheduledTime: time,
@@ -134,6 +154,13 @@ export const storageService = {
 
   loadState(): AppState {
     const todayStr = this.getTodayDateString();
+    
+    // Preparar atividades padrão inicializadas para 'karine'
+    const defaultActivities: Activity[] = routineActivities.map(act => ({
+      ...act,
+      usuarioId: 'karine'
+    }));
+
     try {
       const serialized = localStorage.getItem(STORAGE_KEY);
       if (serialized) {
@@ -141,6 +168,17 @@ export const storageService = {
         
         state.config = { ...defaultConfig, ...state.config };
         
+        // Garantir preenchimento dos novos campos de multiusuário, identidade da equipe e atividades customizáveis
+        if (!state.users || state.users.length === 0) {
+          state.users = initialUsers;
+        }
+        if (!state.teamSettings) {
+          state.teamSettings = initialTeamSettings;
+        }
+        if (!state.activities || state.activities.length === 0) {
+          state.activities = defaultActivities;
+        }
+
         const hasTodayExecutions = state.executions && state.executions.length > 0 && state.executions[0].date === todayStr;
         
         if (!hasTodayExecutions) {
@@ -159,7 +197,7 @@ export const storageService = {
             }
           }
 
-          state.executions = this.generateDefaultExecutions(todayStr);
+          state.executions = this.generateDefaultExecutions(todayStr, state.activities);
           state.currentExecutionId = null;
           this.saveState(state);
         }
@@ -170,12 +208,15 @@ export const storageService = {
       console.error('Error loading state from localStorage:', e);
     }
 
-    const todayExecutions = this.generateDefaultExecutions(todayStr);
+    const todayExecutions = this.generateDefaultExecutions(todayStr, defaultActivities);
     const newState: AppState = {
       executions: todayExecutions,
       currentExecutionId: null,
       history: this.generateDemoHistory(),
-      config: defaultConfig
+      config: defaultConfig,
+      users: initialUsers,
+      teamSettings: initialTeamSettings,
+      activities: defaultActivities
     };
     this.saveState(newState);
     return newState;

@@ -1,9 +1,11 @@
+// src/components/Navbar.tsx
 import React, { useState } from 'react';
 import { 
   LayoutDashboard, Calendar, BarChart3, FolderGit2, CalendarRange, 
-  RotateCw, History, FileText, Settings, Volume2, VolumeX, Eye, 
-  ChevronLeft, ChevronRight, Menu, X, Sparkles
+  Settings, Volume2, VolumeX, Eye, ShieldAlert,
+  ChevronLeft, ChevronRight, Menu, X, Sparkles, UserCheck
 } from 'lucide-react';
+import { User, TeamSettings } from '../types';
 
 interface NavbarProps {
   currentTab: string;
@@ -13,39 +15,11 @@ interface NavbarProps {
   isFocoActive: boolean;
   setIsFocoActive: (active: boolean) => void;
   isReadOnly?: boolean;
+  currentUser: User;
+  setCurrentUser: (user: User) => void;
+  users: User[];
+  teamSettings: TeamSettings;
 }
-
-// Logo Corporativa da Hapvida vetorizada de alta definição
-const HapvidaLogo: React.FC<{ showText: boolean }> = ({ showText }) => {
-  return (
-    <div className="flex items-center gap-2 select-none">
-      <svg viewBox="0 0 45 45" className="h-10 w-10 flex-shrink-0 animate-fade-in" style={{ transform: 'translateY(1px)' }}>
-        <g transform="translate(22.5, 22.5) scale(0.72)">
-          {/* Top Petal (Red) */}
-          <path d="M0,0 C-6,-15 -6,-28 0,-28 C6,-28 6,-15 0,0 Z" fill="#F21D2F" />
-          {/* Right-Up Petal (Orange) */}
-          <path d="M0,0 C12,-11 22,-17 25,-11 C28,-5 18,1 0,0 Z" fill="#F25C05" />
-          {/* Left-Up Petal (Orange) */}
-          <path d="M0,0 C-12,-11 -22,-17 -25,-11 C-28,-5 -18,1 0,0 Z" fill="#F25C05" />
-          {/* Right-Down Petal (Yellow-Orange) */}
-          <path d="M0,0 C15,5 24,11 21,17 C18,23 9,17 0,0 Z" fill="#F2B705" />
-          {/* Left-Down Petal (Yellow-Orange) */}
-          <path d="M0,0 C-15,5 -24,11 -21,17 C-18,23 -9,17 0,0 Z" fill="#F2B705" />
-          {/* Central circle */}
-          <circle cx="0" cy="0" r="1.5" fill="#0339A6" />
-        </g>
-      </svg>
-      {showText && (
-        <span 
-          className="text-white font-extrabold text-xl italic font-sora tracking-tight"
-          style={{ letterSpacing: '-0.06em' }}
-        >
-          Hapvida
-        </span>
-      )}
-    </div>
-  );
-};
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
@@ -54,20 +28,23 @@ export const Navbar: React.FC<NavbarProps> = ({
   toggleSound,
   isFocoActive,
   setIsFocoActive,
-  isReadOnly = false
+  isReadOnly = false,
+  currentUser,
+  setCurrentUser,
+  users,
+  teamSettings
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
+  // Mapeamento dos itens de navegação estrutural redefinidos
   const navItems = [
     { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
     { id: 'agenda', label: 'Agenda do Dia', icon: Calendar },
     { id: 'bis', label: 'BIs', icon: BarChart3 },
     { id: 'directories', label: 'Diretórios', icon: FolderGit2 },
     { id: 'marcos', label: 'Marcos do Mês', icon: CalendarRange },
-    { id: 'ciclos', label: 'Ciclos', icon: RotateCw },
-    { id: 'history', label: 'Histórico', icon: History },
-    { id: 'reports', label: 'Relatórios', icon: FileText },
+    ...(currentUser.role === 'ADMIN' ? [{ id: 'admin', label: 'Administração', icon: ShieldAlert }] : []),
     ...(!isReadOnly ? [{ id: 'config', label: 'Configurações', icon: Settings }] : [])
   ];
 
@@ -77,14 +54,64 @@ export const Navbar: React.FC<NavbarProps> = ({
     setIsMobileOpen(false);
   };
 
+  const handleUserChange = (userId: string) => {
+    const selected = users.find(u => u.id === userId);
+    if (selected) {
+      setCurrentUser(selected);
+      // Ao trocar de usuário operacional, reseta para aba Início por segurança
+      setCurrentTab('dashboard');
+    }
+  };
+
+  // Renderizador do Logotipo customizado ou do placeholder elegante Optimus BI
+  const TeamLogoRenderer: React.FC<{ showText: boolean }> = ({ showText }) => {
+    return (
+      <div className="flex items-center gap-2 select-none">
+        {teamSettings.logoUrl ? (
+          <img 
+            src={teamSettings.logoUrl} 
+            alt={teamSettings.logoAlt} 
+            className="h-10 w-10 object-contain rounded-lg border border-white/20 bg-white/10" 
+          />
+        ) : (
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-[#F21D2F] to-[#0339A6] flex items-center justify-center text-white font-black text-sm font-sora shadow-md">
+            RI
+          </div>
+        )}
+        {showText && (
+          <div className="flex flex-col leading-none">
+            <span 
+              className="text-white font-extrabold text-sm font-sora tracking-tight uppercase"
+              style={{ letterSpacing: '-0.02em' }}
+            >
+              Optimus BI
+            </span>
+            <span className="text-[9px] text-[#F2B705] font-black uppercase tracking-widest mt-0.5">Rotina Inteligente</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
       {/* Mobile Sticky Header */}
       <div className="lg:hidden sticky top-0 z-40 bg-[#0339A6] text-white h-16 px-4 flex items-center justify-between shadow-md border-b border-[#022b80]">
         <div className="flex items-center gap-2">
-          <HapvidaLogo showText={true} />
+          <TeamLogoRenderer showText={true} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {/* Mobile Profile Switcher */}
+          <select
+            value={currentUser.id}
+            onChange={(e) => handleUserChange(e.target.value)}
+            className="bg-white/10 text-white text-[11px] font-bold border border-white/20 rounded px-2 py-1 max-w-[80px] focus:outline-none"
+          >
+            {users.map(u => (
+              <option key={u.id} value={u.id} className="text-gray-900 font-bold">{u.nome}</option>
+            ))}
+          </select>
+
           {/* Sound Toggle */}
           <button
             onClick={toggleSound}
@@ -93,6 +120,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             {soundEnabled ? <Volume2 className="h-4 w-4 text-[#F2B705]" /> : <VolumeX className="h-4 w-4 opacity-50" />}
           </button>
+          
           {/* Menu Button */}
           <button
             onClick={() => setIsMobileOpen(!isMobileOpen)}
@@ -121,7 +149,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-semibold transition duration-150 ${
                       isActive 
                         ? 'bg-[#122A44] text-[#F2B705] border-l-4 border-[#F2B705]' 
-                        : 'text-blue-100 hover:bg-[#022b80] hover:text-[#F2B705] hover:scale-102'
+                        : 'text-blue-100 hover:bg-[#022b80] hover:text-[#F2B705]'
                     }`}
                   >
                     <Icon className="h-4 w-4 flex-shrink-0" />
@@ -157,11 +185,11 @@ export const Navbar: React.FC<NavbarProps> = ({
         }`}
         id="sidebar-navigation"
       >
-        <div className="flex flex-col">
+        <div className="flex flex-col animate-fade-in">
           {/* Header & Toggle */}
           <div className="h-16 flex items-center justify-between px-3 border-b border-[#022b80]">
             <div className="flex items-center overflow-hidden">
-              <HapvidaLogo showText={isExpanded} />
+              <TeamLogoRenderer showText={isExpanded} />
             </div>
             
             <button
@@ -199,7 +227,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Desktop Sidebar Footer */}
-        <div className="p-3 border-t border-[#022b80] flex flex-col gap-2.5 bg-[#022b80]/30">
+        <div className="p-3 border-t border-[#022b80] flex flex-col gap-2.5 bg-[#022b80]/30 animate-fade-in">
           {/* Foco mode trigger */}
           <button
             onClick={() => setIsFocoActive(!isFocoActive)}
@@ -214,20 +242,43 @@ export const Navbar: React.FC<NavbarProps> = ({
             {isExpanded && <span>{isFocoActive ? 'MODO FOCO ATIVO' : 'MODO FOCO'}</span>}
           </button>
 
-          {/* Sound & Status line */}
-          <div className={`flex items-center justify-between ${isExpanded ? 'px-1' : 'justify-center'}`}>
-            {isExpanded && (
-              <span className="text-[10px] text-blue-200 font-medium">
-                Operador: <strong className="text-white">Karine</strong>
-              </span>
+          {/* Sound, Status line & Profile switcher */}
+          <div className={`flex flex-col gap-2 ${isExpanded ? 'px-1' : 'items-center'}`}>
+            {isExpanded ? (
+              <div className="space-y-1">
+                <span className="text-[10px] text-blue-200 font-bold uppercase tracking-wider block">👤 Selecionar Usuário</span>
+                <select
+                  value={currentUser.id}
+                  onChange={(e) => handleUserChange(e.target.value)}
+                  className="w-full bg-[#122A44] text-white text-xs font-extrabold border border-white/10 rounded px-2.5 py-1.5 focus:outline-none"
+                >
+                  {users.map(u => (
+                    <option key={u.id} value={u.id} className="text-gray-900 font-bold">
+                      {u.nome} ({u.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="relative group">
+                <div className="h-8 w-8 rounded-full bg-[#122A44] border border-white/20 flex items-center justify-center font-bold text-xs cursor-pointer text-[#F2B705]">
+                  {currentUser.nome.substring(0, 2).toUpperCase()}
+                </div>
+              </div>
             )}
-            <button
-              onClick={toggleSound}
-              className="p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white transition border border-white/10"
-              title={soundEnabled ? 'Silenciar chimes corporativos' : 'Habilitar alertas de áudio'}
-            >
-              {soundEnabled ? <Volume2 className="h-3.5 w-3.5 text-[#F2B705]" /> : <VolumeX className="h-3.5 w-3.5 opacity-50" />}
-            </button>
+
+            <div className="flex items-center justify-between w-full mt-1">
+              {isExpanded && (
+                <span className="text-[9px] text-[#F2B705] font-black tracking-widest uppercase">Optimus BI</span>
+              )}
+              <button
+                onClick={toggleSound}
+                className="p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white transition border border-white/10"
+                title={soundEnabled ? 'Silenciar alertas' : 'Habilitar som'}
+              >
+                {soundEnabled ? <Volume2 className="h-3.5 w-3.5 text-[#F2B705]" /> : <VolumeX className="h-3.5 w-3.5 opacity-50" />}
+              </button>
+            </div>
           </div>
         </div>
       </aside>
