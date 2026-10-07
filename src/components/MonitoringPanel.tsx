@@ -3,7 +3,7 @@ import { AppState, LogConfig, SystemConfig } from '../types';
 import { 
   Activity, Clock, CheckCircle2, AlertTriangle, XCircle, RefreshCw, 
   Server, Settings, FileText, Play, ShieldAlert, Cpu, ArrowRight, 
-  Search, Terminal, Database, HelpCircle, HardDrive
+  Search, Terminal, Database, HelpCircle, HardDrive, Upload, Cloud, Check
 } from 'lucide-react';
 
 interface MonitoringPanelProps {
@@ -23,6 +23,13 @@ export const MonitoringPanel: React.FC<MonitoringPanelProps> = ({
   const [countdown, setCountdown] = useState(1800); // 30 minutos em segundos (30 * 60)
   const [isAgentConnected, setIsAgentConnected] = useState(false);
   const [selectedLogDetail, setSelectedLogDetail] = useState<LogConfig | null>(null);
+
+  // States para a Importação de JSON e Sincronização
+  const [isJsonModalOpen, setIsJsonModalOpen] = useState(false);
+  const [jsonInputText, setJsonInputText] = useState('');
+  const [jsonError, setJsonError] = useState<string | null>(null);
+  const [isCloudSaving, setIsCloudSaving] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   const logs = appState.logs || [];
   const systemConfig = appState.systemConfig || {
@@ -173,6 +180,171 @@ export const MonitoringPanel: React.FC<MonitoringPanelProps> = ({
     } : prev);
   };
 
+  // Handler para Salvar em Nuvem de forma segura
+  const handleCloudSave = () => {
+    setIsCloudSaving(true);
+    setTimeout(() => {
+      onSaveConfig(appState);
+      setIsCloudSaving(false);
+      alert('☁️ CONEXÃO SÍNCRONA:\n\nDados da plataforma salvos na Nuvem do Optimus BI com sucesso!');
+    }, 1200);
+  };
+
+  // Handler para Processar e Aplicar o JSON imputado
+  const handleApplyJson = (e: React.FormEvent) => {
+    e.preventDefault();
+    setJsonError(null);
+    try {
+      const parsed = JSON.parse(jsonInputText);
+      if (typeof parsed !== 'object' || parsed === null) {
+        throw new Error('O JSON deve ser um objeto estruturado ou um array.');
+      }
+      
+      setAppState(prev => {
+        const newState = { ...prev };
+        
+        // Se for uma lista de logs direta
+        if (Array.isArray(parsed)) {
+          newState.logs = parsed as LogConfig[];
+        } else {
+          // Se for um objeto com chaves opcionais de estado
+          if (parsed.activities) newState.activities = parsed.activities;
+          if (parsed.directories) newState.directories = parsed.directories;
+          if (parsed.logs) newState.logs = parsed.logs;
+          if (parsed.systemConfig) newState.systemConfig = parsed.systemConfig;
+          if (parsed.priorities) newState.priorities = parsed.priorities;
+          if (parsed.config) newState.config = parsed.config;
+        }
+        
+        // Persistir o novo estado consolidado
+        setTimeout(() => onSaveConfig(newState), 50);
+        return newState;
+      });
+      
+      setIsJsonModalOpen(false);
+      setJsonInputText('');
+      alert('✔️ JSON Importado e Consolidado com Sucesso!\n\nAs novas diretivas foram aplicadas em tempo real em toda a plataforma.');
+    } catch (err: any) {
+      setJsonError(err.message || 'Sintaxe de JSON inválida. Por favor, verifique.');
+    }
+  };
+
+  // Handler para ler e processar arquivos .json
+  const handleFileRead = (file: File) => {
+    if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+      alert('❌ Arquivo Inválido:\n\nPor favor, envie apenas arquivos válidos com extensão .json');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result;
+      if (typeof text === 'string') {
+        setJsonInputText(text);
+        setJsonError(null);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileRead(file);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileRead(file);
+    }
+  };
+  const presetErrorLog = `{
+  "logs": [
+    {
+      "id": "log_Script_Tabela_Captados_Fora_Alerta",
+      "status": "OK",
+      "processo": "Script Tabela Captados Fora Alerta",
+      "bi": "Captados Fora do Alerta",
+      "diretorio": "\\\\\\\\10.1.17.4\\\\Usuarios\\\\Credenciamento Medico\\\\NUCLEO DE AGENDAS\\\\RAFAEL FERNANDES\\\\1 - RELATORIOS\\\\log_Script_Tabela_Captados_Fora_Alerta.txt",
+      "ultimaAtualizacao": "10:30",
+      "ultimaVerificacao": "13:54",
+      "acao": "Nenhuma (Exceção Conhecida)",
+      "tipoExcecao": "EXCECAO_CONHECIDA"
+    },
+    {
+      "id": "log_execucao_consultas_em_transferencia",
+      "status": "ERRO",
+      "processo": "Execução Consultas em Transferência",
+      "bi": "BI Relatório de Consultas em Transferência",
+      "diretorio": "\\\\\\\\10.1.17.4\\\\Usuarios\\\\Credenciamento Medico\\\\NUCLEO DE AGENDAS\\\\RAFAEL FERNANDES\\\\1 - RELATORIOS\\\\log_consultas_transferência.txt",
+      "ultimaAtualizacao": "13:45",
+      "ultimaVerificacao": "13:54",
+      "acao": "executar contingência de Consultas em Transferência"
+    }
+  ]
+}`;
+
+  const presetResetLogs = `{
+  "logs": [
+    {
+      "id": "log_Script_Tabela_Captados_Fora_Alerta",
+      "status": "OK",
+      "processo": "Script Tabela Captados Fora Alerta",
+      "bi": "Captados Fora do Alerta",
+      "diretorio": "\\\\\\\\10.1.17.4\\\\Usuarios\\\\Credenciamento Medico\\\\NUCLEO DE AGENDAS\\\\RAFAEL FERNANDES\\\\1 - RELATORIOS\\\\log_Script_Tabela_Captados_Fora_Alerta.txt",
+      "ultimaAtualizacao": "13:54",
+      "ultimaVerificacao": "13:54",
+      "acao": "Nenhuma (Exceção Conhecida)",
+      "tipoExcecao": "EXCECAO_CONHECIDA"
+    },
+    {
+      "id": "log_execucao_consultas_em_transferencia",
+      "status": "OK",
+      "processo": "Execução Consultas em Transferência",
+      "bi": "BI Relatório de Consultas em Transferência",
+      "diretorio": "\\\\\\\\10.1.17.4\\\\Usuarios\\\\Credenciamento Medico\\\\NUCLEO DE AGENDAS\\\\RAFAEL FERNANDES\\\\1 - RELATORIOS\\\\log_consultas_transferência.txt",
+      "ultimaAtualizacao": "13:54",
+      "ultimaVerificacao": "13:54",
+      "acao": "executar contingência de Consultas em Transferência"
+    }
+  ]
+}`;
+
+  const presetIdentity = `{
+  "systemConfig": {
+    "teamBrand": {
+      "name": "Optimus Green",
+      "subtitle": "Gestão Inteligente de Rotina",
+      "logo": "",
+      "logoCompact": "",
+      "primaryColor": "#1B5E20",
+      "secondaryColor": "#66BB6A"
+    },
+    "monitoring": {
+      "enabled": true,
+      "intervalMinutes": 10,
+      "mode": "MOCK"
+    },
+    "user": {
+      "name": "Karine",
+      "role": "OPERACIONAL"
+    }
+  }
+}`;
+
   // Filtragem de logs
   const filteredLogs = useMemo(() => {
     return logs.filter(l => {
@@ -248,18 +420,28 @@ export const MonitoringPanel: React.FC<MonitoringPanelProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={handleManualScan}
-            disabled={isScanning}
-            className={`px-4 py-2.5 rounded-lg text-xs font-black text-white shadow-md transition-all duration-200 flex items-center gap-2 ${
-              isScanning 
-                ? 'bg-blue-400 cursor-not-allowed' 
-                : 'bg-[#0339A6] hover:bg-[#022b80] transform active:scale-95'
-            }`}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isScanning ? 'animate-spin' : ''}`} />
-            {isScanning ? 'Verificando...' : 'Varrer Agora'}
-          </button>
+          <div className="flex flex-wrap gap-2 pt-1 sm:pt-0">
+            <button
+              onClick={() => setIsJsonModalOpen(true)}
+              className="px-4 py-2.5 bg-[#0339A6] hover:bg-[#022b80] text-white text-xs font-black rounded-lg shadow-md transition-all duration-200 flex items-center gap-2 transform active:scale-95"
+              title="Importar configurações de rotina, logs ou diretórios via objeto JSON de forma síncrona"
+            >
+              <Upload className="h-4 w-4" />
+              Importar JSON
+            </button>
+
+            <button
+              onClick={handleCloudSave}
+              disabled={isCloudSaving}
+              className={`px-3.5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg transition-all duration-200 flex items-center gap-1.5 shadow-sm ${
+                isCloudSaving ? 'opacity-60 cursor-not-allowed' : ''
+              }`}
+              title="Salvar imediatamente todas as alterações e configurações atuais na nuvem segura MHC"
+            >
+              <Cloud className="h-3.5 w-3.5" />
+              {isCloudSaving ? 'Salvando...' : 'Salvar na Nuvem'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -552,6 +734,132 @@ export const MonitoringPanel: React.FC<MonitoringPanelProps> = ({
         </div>
 
       </div>
+
+      {/* MODAL DIALOG INTERATIVO DE IMPORTAÇÃO DE JSON */}
+      {isJsonModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 max-w-2xl w-full p-6 space-y-4 animate-fade-in text-gray-800">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-sora font-black text-base text-gray-900 flex items-center gap-2">
+                <Upload className="h-5 w-5 text-blue-600" />
+                Importar Configuração JSON
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsJsonModalOpen(false);
+                  setJsonError(null);
+                  setJsonInputText('');
+                }}
+                className="text-gray-400 hover:text-gray-600 text-sm font-bold"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500 leading-normal">
+              Impute ou cole abaixo o objeto JSON de configuração. Você pode importar logs de monitoramento, listas de atividades do painel, diretórios ou até reconfigurar a identidade visual da marca instantaneamente.
+            </p>
+
+            {/* PRESETS DE CLIQUES RÁPIDOS */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] text-gray-400 font-bold uppercase block">Templates Prontos para Teste</span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setJsonInputText(presetErrorLog)}
+                  className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-[10px] font-black rounded-lg border border-red-200 transition"
+                >
+                  ⚡ Injetar Log de Erro (Testar Contingência)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setJsonInputText(presetResetLogs)}
+                  className="px-2.5 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-[10px] font-black rounded-lg border border-green-200 transition"
+                >
+                  ✔️ Resetar Todos para OK
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setJsonInputText(presetIdentity)}
+                  className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-black rounded-lg border border-blue-200 transition"
+                >
+                  🎨 Customizar Marca MHC (Verde)
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleApplyJson} className="space-y-4">
+              {/* ÁREA DE ARRASTAR E SOLTAR / UPLOAD DE ARQUIVO */}
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${
+                  isDragging 
+                    ? 'border-blue-500 bg-blue-50/50' 
+                    : 'border-gray-200 bg-gray-50/40 hover:bg-gray-50'
+                }`}
+              >
+                <input 
+                  type="file" 
+                  id="json-file-input" 
+                  accept=".json" 
+                  onChange={handleFileChange} 
+                  className="hidden" 
+                />
+                <label htmlFor="json-file-input" className="cursor-pointer space-y-1 block">
+                  <div className="mx-auto h-8 w-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+                    <Upload className="h-4 w-4" />
+                  </div>
+                  <span className="block text-xs font-bold text-gray-700">
+                    Arraste seu arquivo .json aqui ou <span className="text-blue-600 underline">clique para carregar da máquina</span>
+                  </span>
+                  <span className="block text-[10px] text-gray-400">Suporta apenas arquivos legítimos com formato JSON</span>
+                </label>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <textarea
+                  required
+                  rows={6}
+                  value={jsonInputText}
+                  onChange={e => setJsonInputText(e.target.value)}
+                  placeholder='Ou cole aqui seu JSON estruturado, ex: {"logs": [...] } ou envie um dos templates acima...'
+                  className="w-full text-xs font-mono p-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              {jsonError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-start gap-2 animate-pulse">
+                  <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span><b>JSON Inválido:</b> {jsonError}</span>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsJsonModalOpen(false);
+                    setJsonError(null);
+                    setJsonInputText('');
+                  }}
+                  className="px-4 py-2 border text-gray-500 text-xs font-bold rounded-lg hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-lg shadow-md transition"
+                >
+                  Validar e Aplicar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );
