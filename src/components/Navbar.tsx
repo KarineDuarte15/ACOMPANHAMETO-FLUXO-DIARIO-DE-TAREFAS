@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   LayoutDashboard, Calendar, BarChart3, FolderGit2, CalendarRange, 
   Settings, Volume2, VolumeX, Eye, ChevronLeft, ChevronRight, Menu, X, 
-  ShieldAlert, Sliders, ToggleLeft, ToggleRight
+  ShieldAlert, Sliders, ToggleLeft, ToggleRight, Activity
 } from 'lucide-react';
 import { SystemConfig } from '../types';
 
@@ -41,6 +41,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'bis', label: 'BIs', icon: BarChart3 },
     { id: 'directories', label: 'Diretórios', icon: FolderGit2 },
     { id: 'marcos', label: 'Marcos do Mês', icon: CalendarRange },
+    { id: 'monitoring_panel', label: 'Monitoramento', icon: Activity },
     ...(role === 'ADMIN' ? [{ id: 'admin', label: 'Administração', icon: Sliders }] : []),
     ...(!isReadOnly ? [{ id: 'config', label: 'Configurações', icon: Settings }] : [])
   ];

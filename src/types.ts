@@ -183,3 +183,29 @@ export interface Directory {
   ativo?: boolean;
   observacao?: string;
 }
+
+export interface User {
+  id: string;
+  name?: string;
+  nome?: string;
+  email: string;
+  role: 'ADMIN' | 'OPERACIONAL' | 'USER';
+  ativo: boolean;
+}
+
+export interface TeamSettings {
+  teamBrand?: {
+    name: string;
+    subtitle: string;
+    logo?: string;
+    logoCompact?: string;
+    primaryColor: string;
+    secondaryColor: string;
+  };
+  backgroundColor?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  logoUrl?: string;
+  logoAlt?: string;
+  teamName?: string;
+}

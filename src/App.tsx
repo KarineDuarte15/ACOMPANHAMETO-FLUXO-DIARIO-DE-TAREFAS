@@ -28,6 +28,7 @@ import { DirectoriesPanel } from './components/DirectoriesPanel';
 import { MonthlyMilestones } from './components/MonthlyMilestones';
 import { BiSummary } from './components/BiSummary';
 import { AdminPanel } from './components/AdminPanel';
+import { MonitoringPanel } from './components/MonitoringPanel';
 
 // Icon imports
 import { 
@@ -1132,6 +1133,20 @@ export default function App() {
             {currentTab === 'admin' && systemConfig.user.role === 'ADMIN' && (
               <div className="animate-fade-in">
                 <AdminPanel
+                  appState={appState}
+                  setAppState={setAppState}
+                  onSaveConfig={(updatedState) => {
+                    setAppState(updatedState);
+                    storageService.saveState(updatedState);
+                  }}
+                />
+              </div>
+            )}
+
+            {/* TAB: MONITORING PANEL */}
+            {currentTab === 'monitoring_panel' && (
+              <div className="animate-fade-in">
+                <MonitoringPanel
                   appState={appState}
                   setAppState={setAppState}
                   onSaveConfig={(updatedState) => {
