@@ -18,7 +18,6 @@ import { Timeline } from './components/Timeline';
 import { ActivityDetail } from './components/ActivityDetail';
 import { FlippedFocuser } from './components/FlippedFocuser';
 import { ActiveModal } from './components/ActiveModal';
-import { DailyReport } from './components/DailyReport';
 import { HistoryView } from './components/HistoryView';
 import { ConfigPanel } from './components/ConfigPanel';
 import { SchedulerAlerts } from './components/SchedulerAlerts';
@@ -27,8 +26,8 @@ import { SchedulerAlerts } from './components/SchedulerAlerts';
 import { BisTable } from './components/BisTable';
 import { DirectoriesPanel } from './components/DirectoriesPanel';
 import { MonthlyMilestones } from './components/MonthlyMilestones';
-import { CycleRecurrents } from './components/CycleRecurrents';
 import { BiSummary } from './components/BiSummary';
+import { AdminPanel } from './components/AdminPanel';
 
 // Icon imports
 import { 
@@ -40,6 +39,41 @@ export default function App() {
   // Main state loaded from storageService
   const [appState, setAppState] = useState<AppState>(() => storageService.loadState());
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  const dynamicActivities = appState.activities || routineActivities;
+  const dynamicDirectories = appState.directories || [];
+  const systemConfig = appState.systemConfig || {
+    teamBrand: {
+      name: "Optimus BI",
+      subtitle: "Rotina Inteligente",
+      primaryColor: "#0339A6",
+      secondaryColor: "#F2B705",
+      logo: "",
+      logoCompact: ""
+    },
+    monitoring: {
+      enabled: true,
+      intervalMinutes: 30,
+      mode: 'MOCK'
+    },
+    user: {
+      name: "Karine",
+      role: "OPERACIONAL"
+    }
+  };
+
+  const handleRoleChange = (newRole: 'ADMIN' | 'OPERACIONAL') => {
+    setAppState(prev => ({
+      ...prev,
+      systemConfig: {
+        ...(prev.systemConfig || systemConfig),
+        user: {
+          ...(prev.systemConfig?.user || systemConfig.user),
+          role: newRole
+        }
+      }
+    }));
+  };
   
   // Navigation
   const [currentTab, setCurrentTab] = useState('dashboard');
@@ -294,15 +328,15 @@ export default function App() {
   useEffect(() => {
     const activeExec = appState.executions.find(e => e.status === 'EM_EXECUCAO');
     if (activeExec) {
-      const act = routineActivities.find(a => a.id === activeExec.activityId);
-      document.title = `⏱️ [Ativo: ${activeExec.scheduledTime}] - ${act?.name || 'Rotina'} | Rotina Inteligente`;
+      const act = dynamicActivities.find(a => a.id === activeExec.activityId);
+      document.title = `⏱️ [Ativo: ${activeExec.scheduledTime}] - ${act?.name || 'Rotina'} | ${systemConfig.teamBrand.name}`;
     } else {
       const pendingCount = appState.executions.filter(e => e.status === 'PENDENTE' || e.status === 'ATRASADO').length;
       document.title = pendingCount > 0 
-        ? `📋 (${pendingCount}) Rotinas Pendentes | Rotina Inteligente`
-        : '🎉 Tudo Pronto! | Rotina Inteligente';
+        ? `📋 (${pendingCount}) Rotinas Pendentes | ${systemConfig.teamBrand.name}`
+        : `🎉 Tudo Pronto! | ${systemConfig.teamBrand.name}`;
     }
-  }, [appState.executions]);
+  }, [appState.executions, dynamicActivities, systemConfig]);
 
   // Derived state selections
   const executions = appState.executions;
@@ -317,8 +351,8 @@ export default function App() {
 
   const selectedActivity = useMemo(() => {
     if (!selectedExecution) return null;
-    return routineActivities.find(a => a.id === selectedExecution.activityId) || null;
-  }, [selectedExecution]);
+    return dynamicActivities.find(a => a.id === selectedExecution.activityId) || null;
+  }, [selectedExecution, dynamicActivities]);
 
   // Identify active execution (if any)
   const activeExecution = useMemo(() => {
@@ -327,8 +361,8 @@ export default function App() {
 
   const activeActivity = useMemo(() => {
     if (!activeExecution) return null;
-    return routineActivities.find(a => a.id === activeExecution.activityId) || null;
-  }, [activeExecution]);
+    return dynamicActivities.find(a => a.id === activeExecution.activityId) || null;
+  }, [activeExecution, dynamicActivities]);
 
   // Select next upcoming execution for Spotlight Card
   const nextSpotlightExecution = useMemo(() => {
@@ -347,8 +381,8 @@ export default function App() {
 
   const nextSpotlightActivity = useMemo(() => {
     if (!nextSpotlightExecution) return null;
-    return routineActivities.find(a => a.id === nextSpotlightExecution.activityId) || null;
-  }, [nextSpotlightExecution]);
+    return dynamicActivities.find(a => a.id === nextSpotlightExecution.activityId) || null;
+  }, [nextSpotlightExecution, dynamicActivities]);
 
   // Calculate next execution after the spotlight for Modo Foco
   const nextUpcomingExecution = useMemo(() => {
@@ -362,8 +396,8 @@ export default function App() {
 
   const nextUpcomingActivity = useMemo(() => {
     if (!nextUpcomingExecution) return null;
-    return routineActivities.find(a => a.id === nextUpcomingExecution.activityId) || null;
-  }, [nextUpcomingExecution]);
+    return dynamicActivities.find(a => a.id === nextUpcomingExecution.activityId) || null;
+  }, [nextUpcomingExecution, dynamicActivities]);
 
   // TIMER / CRONÔMETRO EVENTS
   const startExecution = (execId: string) => {
@@ -483,7 +517,7 @@ export default function App() {
     }
     const nowStr = new Date().toISOString();
     const exec = executions.find(e => e.id === execId);
-    const act = routineActivities.find(a => a.id === exec?.activityId);
+    const act = dynamicActivities.find(a => a.id === exec?.activityId);
 
     if (!exec || !act) return;
 
@@ -526,7 +560,7 @@ export default function App() {
   ) => {
     const nowStr = new Date().toISOString();
     const exec = executions.find(e => e.id === execId);
-    const act = routineActivities.find(a => a.id === exec?.activityId);
+    const act = dynamicActivities.find(a => a.id === exec?.activityId);
 
     if (!exec || !act) return;
 
@@ -722,7 +756,7 @@ export default function App() {
       {/* Background Active Scheduler (Silent Web Audio chime inside) */}
       <SchedulerAlerts
         executions={executions}
-        activities={routineActivities}
+        activities={dynamicActivities}
         soundEnabled={config.soundEnabled}
         onTriggerAlert={handleSchedulerAlertTrigger}
         alertOffsetMinutes={config.alertOffsetMinutes}
@@ -738,6 +772,9 @@ export default function App() {
         isFocoActive={isFocoActive}
         setIsFocoActive={setIsFocoActive}
         isReadOnly={isReadOnly}
+        brand={systemConfig.teamBrand}
+        role={systemConfig.user.role}
+        onChangeRole={handleRoleChange}
       />
 
       {/* RIGHT WORKSPACE PANELS CONTAINER */}
@@ -964,7 +1001,7 @@ export default function App() {
                 )}
 
                 {/* KEY STATS INDICATORS BAR */}
-                <Indicators executions={executions} activities={routineActivities} />
+                <Indicators executions={executions} activities={dynamicActivities} />
 
                 {/* CORE DASHBOARD GRID: LEFT RESUMO BIs / RIGHT INSTRUCTIONS */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -973,7 +1010,7 @@ export default function App() {
                   <div className="lg:col-span-8 flex flex-col">
                     <BiSummary
                       executions={executions}
-                      activities={routineActivities}
+                      activities={dynamicActivities}
                       onSelectExecution={(execId) => setSelectedExecutionId(execId)}
                       onForceCreateExecution={handleForceCreateExecution}
                       onCompleteExecution={completeExecution}
@@ -1021,7 +1058,7 @@ export default function App() {
               <div className="animate-fade-in">
                 <Timeline
                   executions={executions}
-                  activities={routineActivities}
+                  activities={dynamicActivities}
                   onStartExecution={startExecution}
                   onPauseExecution={pauseExecution}
                   onResetExecution={resetExecution}
@@ -1039,7 +1076,7 @@ export default function App() {
             {currentTab === 'bis' && (
               <BisTable
                 executions={executions}
-                activities={routineActivities}
+                activities={dynamicActivities}
                 onStartExecution={startExecution}
                 onPauseExecution={pauseExecution}
                 onResetExecution={resetExecution}
@@ -1056,7 +1093,7 @@ export default function App() {
             {/* TAB: DIRECTORIES (MAPA DE PASTAS E SERVIDORES) */}
             {currentTab === 'directories' && (
               <DirectoriesPanel
-                activities={routineActivities}
+                activities={dynamicActivities}
                 onSelectExecutionByActivityId={(actId) => {
                   const exec = executions.find(e => e.activityId === actId);
                   if (exec) {
@@ -1075,7 +1112,7 @@ export default function App() {
             {currentTab === 'marcos' && (
               <MonthlyMilestones
                 executions={executions}
-                activities={routineActivities}
+                activities={dynamicActivities}
                 onForceCreateExecution={handleForceCreateExecution}
                 onSelectExecutionByActivityId={(actId) => {
                   const exec = executions.find(e => e.activityId === actId);
@@ -1091,43 +1128,16 @@ export default function App() {
               />
             )}
 
-            {/* TAB: RECORRENTES E CICLOS */}
-            {currentTab === 'ciclos' && (
-              <CycleRecurrents
-                executions={executions}
-                activities={routineActivities}
-                onForceCreateExecution={handleForceCreateExecution}
-                onSelectExecutionByActivityId={(actId) => {
-                  const exec = executions.find(e => e.activityId === actId);
-                  if (exec) {
-                    setSelectedExecutionId(exec.id);
-                    setCurrentTab('dashboard');
-                  } else {
-                    handleForceCreateExecution(actId, '12:00');
-                    alert('Atividade de ciclo selecionada com sucesso. Uma execução manual correspondente foi criada para auditoria.');
-                    setCurrentTab('dashboard');
-                  }
-                }}
-              />
-            )}
-
-            {/* TAB: HISTÓRICO LOGS */}
-            {currentTab === 'history' && (
+            {/* TAB: ADMIN PANEL */}
+            {currentTab === 'admin' && systemConfig.user.role === 'ADMIN' && (
               <div className="animate-fade-in">
-                <HistoryView
-                  history={history}
-                  todayExecutions={executions}
-                  activities={routineActivities}
-                />
-              </div>
-            )}
-
-            {/* TAB: PRODUCTIVITY REPORT */}
-            {currentTab === 'reports' && (
-              <div className="animate-fade-in">
-                <DailyReport
-                  executions={executions}
-                  activities={routineActivities}
+                <AdminPanel
+                  appState={appState}
+                  setAppState={setAppState}
+                  onSaveConfig={(updatedState) => {
+                    setAppState(updatedState);
+                    storageService.saveState(updatedState);
+                  }}
                 />
               </div>
             )}
@@ -1156,8 +1166,8 @@ export default function App() {
         {/* FOOTER */}
         <footer className="bg-white border-t border-gray-200 mt-auto py-6 text-center text-xs text-gray-400 print:hidden">
           <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <span><b>Rotina Inteligente</b> · Copiloto Corporativo de Produtividade</span>
-            <span>Desenvolvido para auditoria interna da retaguarda Hapvida · Karine</span>
+            <span><b>{systemConfig.teamBrand.name}</b> · {systemConfig.teamBrand.subtitle}</span>
+            <span>Desenvolvido para auditoria interna e monitoramento operacional · {systemConfig.user.name}</span>
           </div>
         </footer>
 

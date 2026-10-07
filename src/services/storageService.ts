@@ -1,4 +1,4 @@
-import { AppState, Execution, UserConfig, HistoryDay, ExecutionStatus, Directory } from '../types';
+import { AppState, Execution, UserConfig, HistoryDay, ExecutionStatus, Directory, SystemConfig, PriorityConfig, LogConfig, Activity } from '../types';
 import { routineActivities } from '../data/activities';
 
 const STORAGE_KEY = 'rotina_inteligente_state_v1';
@@ -18,6 +18,92 @@ const defaultConfig: UserConfig = {
   googleSheetsSpreadsheetId: '',
   googleSheetsEnabled: false
 };
+
+const defaultSystemConfig: SystemConfig = {
+  teamBrand: {
+    name: "Optimus BI",
+    subtitle: "Rotina Inteligente",
+    primaryColor: "#0339A6",
+    secondaryColor: "#F2B705",
+    logo: "",
+    logoCompact: ""
+  },
+  monitoring: {
+    enabled: true,
+    intervalMinutes: 30,
+    mode: 'MOCK'
+  },
+  user: {
+    name: "Karine",
+    role: "OPERACIONAL"
+  }
+};
+
+const defaultPriorities: PriorityConfig[] = [
+  { id: 'P0', nome: 'P0', descricao: 'Crítica', cor: '#F21D2F', ordem: 1, criticidadePadrao: 'CRITICA' },
+  { id: 'P1', nome: 'P1', descricao: 'Alta', cor: '#F24405', ordem: 2, criticidadePadrao: 'ALTA' },
+  { id: 'P2', nome: 'P2', descricao: 'Média', cor: '#F2B705', ordem: 3, criticidadePadrao: 'MEDIA' },
+  { id: 'P3', nome: 'P3', descricao: 'Baixa/Base', cor: '#0339A6', ordem: 4, criticidadePadrao: 'BAIXA' }
+];
+
+const defaultLogs: LogConfig[] = [
+  {
+    id: 'log_Script_Tabela_Captados_Fora_Alerta',
+    status: 'OK',
+    processo: 'Script Tabela Captados Fora Alerta',
+    bi: 'Captados Fora do Alerta',
+    diretorio: '\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\1 - RELATORIOS\\log_Script_Tabela_Captados_Fora_Alerta.txt',
+    ultimaAtualizacao: '10:30',
+    ultimaVerificacao: '10:30',
+    acao: 'Nenhuma (Exceção Conhecida)',
+    tipoExcecao: 'EXCECAO_CONHECIDA',
+    atividadeId: 'captados-fora'
+  },
+  {
+    id: 'log_execucao_consultas_em_transferencia',
+    status: 'OK',
+    processo: 'Execução Consultas em Transferência',
+    bi: 'BI Relatório de Consultas em Transferência',
+    diretorio: '\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\1 - RELATORIOS\\log_consultas_transferência.txt',
+    ultimaAtualizacao: '10:15',
+    ultimaVerificacao: '10:30',
+    acao: 'executar contingência de Consultas em Transferência',
+    atividadeId: 'consultas-transf'
+  },
+  {
+    id: 'log_execucao_relatorio_de_cancelamento',
+    status: 'OK',
+    processo: 'Execução Relatório de Cancelamento',
+    bi: 'Cancelamentos e Agendamentos',
+    diretorio: '\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\1 - RELATORIOS\\log_cancelamento.txt',
+    ultimaAtualizacao: '09:45',
+    ultimaVerificacao: '10:30',
+    acao: 'executar JOB_CANCELAMENTO',
+    atividadeId: 'relatorio-cancelamentos'
+  },
+  {
+    id: 'log_relatorio_mensageria',
+    status: 'OK',
+    processo: 'Relatório Mensageria',
+    bi: 'Mensageria Unificada',
+    diretorio: '\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\1 - RELATORIOS\\log_mensageria.txt',
+    ultimaAtualizacao: '10:00',
+    ultimaVerificacao: '10:30',
+    acao: 'executar contingência de Mensageria',
+    atividadeId: 'relatorio-mensageria'
+  },
+  {
+    id: 'log_monitoramento_marcacao_ans',
+    status: 'OK',
+    processo: 'Monitoramento Marcação ANS',
+    bi: 'ANS Marcação e Prazos',
+    diretorio: '\\\\10.1.17.4\\Usuarios\\Credenciamento Medico\\NUCLEO DE AGENDAS\\RAFAEL FERNANDES\\1 - RELATORIOS\\log_marcacao_ans.txt',
+    ultimaAtualizacao: '10:20',
+    ultimaVerificacao: '10:30',
+    acao: 'executar novamente',
+    atividadeId: 'marcacao-ans'
+  }
+];
 
 export const storageService = {
   getTodayDateString(): string {
@@ -55,7 +141,7 @@ export const storageService = {
     return tempDate.getMonth() !== currentMonth;
   },
 
-  generateDefaultExecutions(dateStr: string): Execution[] {
+  generateDefaultExecutions(dateStr: string, activitiesList?: Activity[]): Execution[] {
     const executions: Execution[] = [];
     const dateObj = new Date(dateStr + 'T12:00:00');
     const dayOfMonth = dateObj.getDate();
@@ -65,9 +151,11 @@ export const storageService = {
     const nthBusinessDay = this.getBusinessDayOfMonth(dateObj);
     const isLastDay = this.isLastDayOfMonth(dateObj);
     
-    routineActivities.forEach(activity => {
+    const targetActivities = activitiesList || routineActivities;
+    
+    targetActivities.forEach(activity => {
       // 1. Pular atividades inativas ou arquivadas
-      if (!activity.ativo || activity.visibilidade === 'ARQUIVO') {
+      if (!activity.ativo || (activity.visibilidade === 'ARQUIVO')) {
         return;
       }
       
@@ -84,7 +172,7 @@ export const storageService = {
         const daysMap: Record<string, number> = {
           'Segunda': 1, 'Terça': 2, 'Quarta': 3, 'Quinta': 4, 'Sexta': 5
         };
-        const activeWeekdays = activity.diasSemana.map(d => daysMap[d]).filter(v => v !== undefined);
+        const activeWeekdays = (activity.diasSemana || []).map(d => daysMap[d]).filter(v => v !== undefined);
         if (activeWeekdays.includes(dayOfWeek)) {
           isApplicable = true;
         }
@@ -114,7 +202,7 @@ export const storageService = {
       }
       
       if (isApplicable) {
-        activity.horario.forEach(time => {
+        (activity.horario || []).forEach(time => {
           executions.push({
             id: `${activity.id}-${time}`,
             activityId: activity.id,
@@ -141,6 +229,38 @@ export const storageService = {
         
         state.config = { ...defaultConfig, ...state.config };
         
+        // Inicializar propriedades do Optimus BI se não existirem
+        if (!state.activities || state.activities.length === 0) {
+          state.activities = [...routineActivities];
+        }
+        if (!state.directories || state.directories.length === 0) {
+          // Preencher diretórios da rotina atual
+          state.directories = routineActivities.flatMap(act => 
+            act.diretorios.map((pathStr, index) => ({
+              id: `${act.id}-dir-${index}`,
+              nome: pathStr.split('\\').pop() || pathStr.split('/').pop() || 'Caminho de Rede',
+              caminho: pathStr,
+              atividadeId: act.id,
+              biRelacionado: act.biRelacionado,
+              prioridade: act.prioridade,
+              tipo: act.categoria,
+              uso: act.objetivo,
+              contingencia: act.tipoExecucao === 'CONTINGENCIA',
+              ativo: true,
+              observacao: ''
+            }))
+          );
+        }
+        if (!state.systemConfig) {
+          state.systemConfig = { ...defaultSystemConfig };
+        }
+        if (!state.priorities) {
+          state.priorities = [...defaultPriorities];
+        }
+        if (!state.logs) {
+          state.logs = [...defaultLogs];
+        }
+
         const hasTodayExecutions = state.executions && state.executions.length > 0 && state.executions[0].date === todayStr;
         
         if (!hasTodayExecutions) {
@@ -159,7 +279,7 @@ export const storageService = {
             }
           }
 
-          state.executions = this.generateDefaultExecutions(todayStr);
+          state.executions = this.generateDefaultExecutions(todayStr, state.activities);
           state.currentExecutionId = null;
           this.saveState(state);
         }
@@ -170,12 +290,31 @@ export const storageService = {
       console.error('Error loading state from localStorage:', e);
     }
 
-    const todayExecutions = this.generateDefaultExecutions(todayStr);
+    const todayExecutions = this.generateDefaultExecutions(todayStr, [...routineActivities]);
     const newState: AppState = {
       executions: todayExecutions,
       currentExecutionId: null,
       history: this.generateDemoHistory(),
-      config: defaultConfig
+      config: defaultConfig,
+      activities: [...routineActivities],
+      directories: routineActivities.flatMap(act => 
+        act.diretorios.map((pathStr, index) => ({
+          id: `${act.id}-dir-${index}`,
+          nome: pathStr.split('\\').pop() || pathStr.split('/').pop() || 'Caminho de Rede',
+          caminho: pathStr,
+          atividadeId: act.id,
+          biRelacionado: act.biRelacionado,
+          prioridade: act.prioridade,
+          tipo: act.categoria,
+          uso: act.objetivo,
+          contingencia: act.tipoExecucao === 'CONTINGENCIA',
+          ativo: true,
+          observacao: ''
+        }))
+      ),
+      systemConfig: { ...defaultSystemConfig },
+      priorities: [...defaultPriorities],
+      logs: [...defaultLogs]
     };
     this.saveState(newState);
     return newState;
@@ -223,7 +362,19 @@ export const storageService = {
 
   resetTodayExecutions(): Execution[] {
     const todayStr = this.getTodayDateString();
-    const defaults = this.generateDefaultExecutions(todayStr);
+    let dynamicActivities: Activity[] = [];
+    
+    try {
+      const serialized = localStorage.getItem(STORAGE_KEY);
+      if (serialized) {
+        const state: AppState = JSON.parse(serialized);
+        dynamicActivities = state.activities || [];
+      }
+    } catch (e) {
+      console.error('Error reading activities for reset:', e);
+    }
+
+    const defaults = this.generateDefaultExecutions(todayStr, dynamicActivities.length > 0 ? dynamicActivities : undefined);
     
     try {
       const serialized = localStorage.getItem(STORAGE_KEY);
@@ -255,7 +406,7 @@ export const storageService = {
 
     dates.forEach((dateStr, idx) => {
       const rawExecs = this.generateDefaultExecutions(dateStr);
-      const executions = rawExecs.map((exec, eidx) => {
+      const executions = rawExecs.map((exec) => {
         const statusRand = Math.random();
         
         let status: ExecutionStatus = 'CONCLUIDO';

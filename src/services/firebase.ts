@@ -1,21 +1,20 @@
 // src/services/firebase.ts
-
-// 1. Importamos as ferramentas fundamentais do Firebase
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-
+import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: "878269830878",
-  authDomain: "rotinainteligentehap.firebaseapp.com", // Geralmente segue este padrão
-  projectId: "rotinainteligentehap",
-  storageBucket: "rotinainteligentehap.appspot.com", // Geralmente segue este padrão
-  messagingSenderId: "SEU_SENDER_ID",
-  appId: "SEU_APP_ID"
+  projectId: "rotina-inteligente-508715",
+  appId: "1:945309987493:web:1c68e074d45eccc05ad34c",
+  apiKey: "AIzaSyAnvLIfAkHARaEo6ZRm4eY8jE18E-7BpOA",
+  authDomain: "rotina-inteligente-508715.firebaseapp.com",
+  storageBucket: "rotina-inteligente-508715.firebasestorage.app",
+  messagingSenderId: "945309987493"
 };
 
-// 3. Inicializamos a aplicação Firebase com as tuas credenciais
+// Inicializamos a aplicação Firebase com as credenciais reais do applet
 const app = initializeApp(firebaseConfig);
 
-// 4. Exportamos o 'db' (banco de dados Firestore) para podermos gravar e ler dados nos outros ficheiros
+// Exportamos o 'db' (Firestore) e o 'auth' (Firebase Auth)
 export const db = getFirestore(app);
+export const auth = getAuth(app);

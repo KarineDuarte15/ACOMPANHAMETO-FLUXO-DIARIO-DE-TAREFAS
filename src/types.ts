@@ -113,12 +113,61 @@ export interface UserConfig {
   googleSheetsEnabled?: boolean;
 }
 
+export interface SystemConfig {
+  teamBrand: {
+    name: string;
+    subtitle: string;
+    logo?: string;
+    logoCompact?: string;
+    primaryColor: string;
+    secondaryColor: string;
+  };
+  monitoring: {
+    enabled: boolean;
+    intervalMinutes: number;
+    mode: 'MOCK' | 'LOCAL_AGENT';
+  };
+  user: {
+    name: string;
+    role: "ADMIN" | "OPERACIONAL";
+  };
+}
+
+export interface PriorityConfig {
+  id: "P0" | "P1" | "P2" | "P3";
+  nome: string;
+  descricao: string;
+  cor: string;
+  ordem: number;
+  criticidadePadrao: string;
+}
+
+export interface LogConfig {
+  id: string;
+  status: "OK" | "ATENCAO" | "ERRO" | "NAO_MONITORADO";
+  processo: string;
+  bi: string;
+  diretorio: string;
+  ultimaAtualizacao: string;
+  ultimaVerificacao: string;
+  acao: string;
+  tipoExcecao?: "EXCECAO_CONHECIDA" | null;
+  atividadeId?: string;
+}
+
 export interface AppState {
   executions: Execution[];
   currentExecutionId: string | null; // currently running cronômetro
   history: HistoryDay[];
   config: UserConfig;
   activeBreak?: 'LUNCH' | 'COFFEE' | null;
+  
+  // Novas propriedades da plataforma Optimus BI
+  activities?: Activity[];
+  directories?: Directory[];
+  systemConfig?: SystemConfig;
+  priorities?: PriorityConfig[];
+  logs?: LogConfig[];
 }
 
 export interface Directory {
@@ -131,4 +180,6 @@ export interface Directory {
   tipo: string;
   uso: string;
   contingencia: boolean;
+  ativo?: boolean;
+  observacao?: string;
 }
