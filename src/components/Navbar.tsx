@@ -42,6 +42,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'directories', label: 'Diretórios', icon: FolderGit2 },
     { id: 'marcos', label: 'Marcos do Mês', icon: CalendarRange },
     { id: 'monitoring_panel', label: 'Monitoramento', icon: Activity },
+    { id: 'alerts', label: 'Alertas', icon: ShieldAlert },
+    { id: 'docs', label: 'Documentação', icon: FolderGit2 },
     ...(role === 'ADMIN' ? [{ id: 'admin', label: 'Administração', icon: Sliders }] : []),
     ...(!isReadOnly ? [{ id: 'config', label: 'Configurações', icon: Settings }] : [])
   ];

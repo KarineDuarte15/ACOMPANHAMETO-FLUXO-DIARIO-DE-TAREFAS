@@ -19,6 +19,7 @@ import { ActivityDetail } from './components/ActivityDetail';
 import { FlippedFocuser } from './components/FlippedFocuser';
 import { ActiveModal } from './components/ActiveModal';
 import { HistoryView } from './components/HistoryView';
+import { DocsHub } from './components/DocsHub';
 import { ConfigPanel } from './components/ConfigPanel';
 import { SchedulerAlerts } from './components/SchedulerAlerts';
 
@@ -422,7 +423,7 @@ export default function App() {
           const delaySecs = delayMs > 0 ? Math.floor(delayMs / 1000) : 0;
           
           let statusStr: ExecutionStatus = e.status;
-          let delaySecondsValue = e.delaySeconds;
+          let delaySecondsValue = e.delaySeconds ?? 0;
 
           // If delayed more than 5 minutes (300s) and config is enabled, mark delayed
           if (delaySecs > 300) {
@@ -1156,6 +1157,9 @@ export default function App() {
                 />
               </div>
             )}
+
+            {/* TAB: DOCUMENTATION */}
+            {currentTab === 'docs' && <DocsHub />}
 
             {/* TAB: SETTINGS PANEL */}
             {currentTab === 'config' && (
