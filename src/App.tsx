@@ -12,6 +12,7 @@ import {
 } from './services/googleSheetsService';
 
 // Component Imports
+
 import { Navbar } from './components/Navbar';
 import { Indicators } from './components/Indicators';
 import { Timeline } from './components/Timeline';
@@ -39,6 +40,7 @@ import {
 
 export default function App() {
   // Main state loaded from storageService
+  const [dateStr, setDateStr] = useState(() => new Date().toISOString().split('T')[0]);
   const [appState, setAppState] = useState<AppState>(() => storageService.loadState());
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -297,26 +299,24 @@ export default function App() {
   // Sync state to Firebase in real-time when changed (only for operator)
   useEffect(() => {
     if (isReadOnly) return;
-    const todayStr = storageService.getTodayDateString();
-    syncService.saveStateToFirebase(todayStr, appState);
-  }, [appState, isReadOnly]);
+    syncService.saveStateToFirebase(dateStr, appState);
+  }, [appState, dateStr, isReadOnly]);
 
-  // Subscribe to Firebase real-time updates (critical for Gestor View / synchronizing screens)
+  // Subscribe to Firebase real-time updates for all views.
   useEffect(() => {
-    const todayStr = storageService.getTodayDateString();
-    const unsubscribe = syncService.subscribeToState(todayStr, (data) => {
-      if (isReadOnly && data) {
+    const unsubscribe = syncService.subscribeToState(dateStr, (remoteData) => {
+      if (remoteData && remoteData.executions) {
         setAppState(prev => ({
           ...prev,
-          executions: data.executions || prev.executions,
-          currentExecutionId: data.currentExecutionId !== undefined ? data.currentExecutionId : prev.currentExecutionId,
-          activeBreak: data.activeBreak !== undefined ? data.activeBreak : prev.activeBreak,
-          config: { ...prev.config, ...data.config }
+          executions: remoteData.executions,
+          currentExecutionId: remoteData.currentExecutionId
         }));
       }
     });
-    return () => unsubscribe();
-  }, [isReadOnly]);
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [dateStr]);
 
   // Keep digital clock ticking
   useEffect(() => {
@@ -333,7 +333,7 @@ export default function App() {
       const act = dynamicActivities.find(a => a.id === activeExec.activityId);
       document.title = `⏱️ [Ativo: ${activeExec.scheduledTime}] - ${act?.name || 'Rotina'} | ${systemConfig.teamBrand.name}`;
     } else {
-      const pendingCount = appState.executions.filter(e => e.status === 'PENDENTE' || e.status === 'ATRASADO').length;
+      const pendingCount = appState.executions.filter(e => e.status === 'PENDENTE').length;
       document.title = pendingCount > 0 
         ? `📋 (${pendingCount}) Rotinas Pendentes | ${systemConfig.teamBrand.name}`
         : `🎉 Tudo Pronto! | ${systemConfig.teamBrand.name}`;
@@ -371,11 +371,11 @@ export default function App() {
     // 1. If an execution is active, spotlight that
     if (activeExecution) return activeExecution;
 
-    // 2. Find the earliest non-concluded execution (Pendente or Atrasado)
-    const pendingAndAtrasado = executions.filter(e => e.status === 'PENDENTE' || e.status === 'ATRASADO');
-    if (pendingAndAtrasado.length > 0) {
+    // 2. Find the earliest pending execution
+    const pendingExecutions = executions.filter(e => e.status === 'PENDENTE');
+    if (pendingExecutions.length > 0) {
       // Sort chronologically (should already be sorted but safe-check)
-      return pendingAndAtrasado[0];
+      return pendingExecutions[0];
     }
 
     return null;
@@ -422,12 +422,10 @@ export default function App() {
           const delayMs = actualStart.getTime() - schedDate.getTime();
           const delaySecs = delayMs > 0 ? Math.floor(delayMs / 1000) : 0;
           
-          let statusStr: ExecutionStatus = e.status;
           let delaySecondsValue = e.delaySeconds ?? 0;
 
-          // If delayed more than 5 minutes (300s) and config is enabled, mark delayed
+          // Keep delay as metadata; execution status remains operational.
           if (delaySecs > 300) {
-            statusStr = 'ATRASADO' as ExecutionStatus;
             delaySecondsValue = delaySecs;
           }
 
@@ -523,7 +521,7 @@ export default function App() {
 
     if (!exec || !act) return;
 
-    // Check if there was an active delay
+    // Record delay as metadata without creating a separate status.
     const [schedHour, schedMin] = exec.scheduledTime.split(':').map(Number);
     const schedDate = new Date();
     schedDate.setHours(schedHour, schedMin, 0, 0);
@@ -532,26 +530,25 @@ export default function App() {
     const delayMs = actualEnd.getTime() - schedDate.getTime();
     const delaySecs = delayMs > 0 ? Math.floor(delayMs / 1000) : 0;
 
-    const isAtrasado = delaySecs > 300; // delay is more than 5 minutes
+    finalizeExecutionSave(execId, elapsedSeconds, delaySecs);
+  };
 
-    if (isAtrasado && config.enableDelayAlerts && !exec.delayReason) {
-      // Trigger delay prompt modal before final confirmation!
-      setTempCompletedExecId(execId);
-      setTempElapsed(elapsedSeconds);
-      setModalActivity(act);
-      
-      const enrichedExec: Execution = {
-        ...exec,
-        durationSeconds: elapsedSeconds,
-        delaySeconds: delaySecs,
-        status: 'ATRASADO' as ExecutionStatus
-      };
-      setModalExecution(enrichedExec);
-      setModalType('delay_prompt');
-    } else {
-      // Complete directly
-      finalizeExecutionSave(execId, elapsedSeconds, delaySecs);
-    }
+  const handleUpdateExecutionStatus = async (
+    execId: string,
+    newStatus: 'PENDENTE' | 'EM_EXECUCAO' | 'CONCLUIDO'
+  ) => {
+    const updatedState = {
+      ...appState,
+      executions: appState.executions.map(ex =>
+        ex.id === execId
+          ? { ...ex, status: newStatus, updatedAt: new Date().toISOString() }
+          : ex
+      )
+    };
+
+    setAppState(updatedState);
+    storageService.saveState(updatedState);
+    await syncService.saveStateToFirebase(dateStr, updatedState);
   };
 
   const finalizeExecutionSave = (
@@ -1136,10 +1133,7 @@ export default function App() {
                 <AdminPanel
                   appState={appState}
                   setAppState={setAppState}
-                  onSaveConfig={(updatedState) => {
-                    setAppState(updatedState);
-                    storageService.saveState(updatedState);
-                  }}
+                  onSaveConfig={setAppState}
                 />
               </div>
             )}
@@ -1147,14 +1141,7 @@ export default function App() {
             {/* TAB: MONITORING PANEL */}
             {currentTab === 'monitoring_panel' && (
               <div className="animate-fade-in">
-                <MonitoringPanel
-                  appState={appState}
-                  setAppState={setAppState}
-                  onSaveConfig={(updatedState) => {
-                    setAppState(updatedState);
-                    storageService.saveState(updatedState);
-                  }}
-                />
+                <MonitoringPanel />
               </div>
             )}
 

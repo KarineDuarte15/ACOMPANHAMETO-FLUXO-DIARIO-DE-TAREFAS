@@ -177,7 +177,6 @@ export const Timeline: React.FC<TimelineProps> = ({
             if (!act) return null;
 
             const isCompleted = exec.status === 'CONCLUIDO';
-            const isAtrasado = exec.status === 'ATRASADO';
             const isRunning = exec.status === 'EM_EXECUCAO';
             const isExpanded = expandedExecId === exec.id;
 
@@ -200,12 +199,6 @@ export const Timeline: React.FC<TimelineProps> = ({
               borderHighlight = 'border-green-200 bg-green-50/10 hover:border-green-300 shadow-sm';
               statusText = 'Em Execução';
               statusBg = 'bg-green-100 text-green-800 border border-green-200 font-bold animate-pulse';
-            } else if (isAtrasado) {
-              markerColor = 'bg-orange-600 border-orange-300 text-white shadow-sm';
-              textColor = 'text-orange-700 font-bold';
-              borderHighlight = 'border-orange-100 bg-orange-50/10 hover:border-orange-200';
-              statusText = 'Atrasado';
-              statusBg = 'bg-orange-50 text-orange-700 border border-orange-100 font-bold';
             }
 
             // Format duration if available
@@ -342,9 +335,9 @@ export const Timeline: React.FC<TimelineProps> = ({
                         <button
                           onClick={() => onResetExecution(exec.id)}
                           className="p-2 border border-red-100 text-red-500 hover:bg-red-50 rounded-lg transition text-xs font-bold flex items-center gap-1"
-                          title="Resetar atividade"
+                          title="Marcar como não concluída / pendente"
                         >
-                          <RotateCcw className="h-3.5 w-3.5" /> Reabrir
+                          <RotateCcw className="h-3.5 w-3.5" /> Não concluída / Pendente
                         </button>
                       )}
 

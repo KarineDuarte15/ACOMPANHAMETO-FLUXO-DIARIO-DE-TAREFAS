@@ -131,7 +131,7 @@ export const DocsHub: React.FC = () => {
       {/* Frame que exibe o arquivo HTML */}
       <iframe
         ref={iframeRef}
-        key={iframeSrc}
+        // key={iframeSrc}
         src={iframeSrc}
         title="Hub de Documentações"
         className="w-full flex-1 border-0 bg-white"

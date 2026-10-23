@@ -34,7 +34,7 @@ export interface Activity {
   regrasNegocio: string[];
   condicaoSucesso: string[];
   condicaoErro: string[];
-  status: 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDA' | 'ATRASADA' | 'BLOQUEADA' | 'NAO_APLICAVEL';
+  status: 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDA' | 'NAO_APLICAVEL';
   horarioPrevisto?: string;
   iniciadoEm?: string;
   concluidoEm?: string;
@@ -60,12 +60,9 @@ export interface Activity {
 }
 
 export type ExecutionStatus = 
-  | 'PENDENTE'
-  | 'EM_EXECUCAO'
-  | 'CONCLUIDO'
-  | 'ATRASADO'
-  | 'BLOQUEADO'
-  | 'NAO_REALIZADO';
+  | 'PENDENTE'     // Não Concluído
+  | 'EM_EXECUCAO'  // Em andamento
+  | 'CONCLUIDO';   // Concluído
 
 export interface Execution {
   id: string; // e.g. "activityId-time"
@@ -74,6 +71,7 @@ export interface Execution {
   scheduledTime: string; // HH:MM
   startedAt?: string; // ISO string
   completedAt?: string; // ISO string
+  updatedAt?: string; // ISO string
   durationSeconds?: number;
   delaySeconds?: number;
   status: ExecutionStatus;

@@ -248,7 +248,7 @@ export const BisTable: React.FC<BisTableProps> = ({
                 return activeExecs.map(exec => {
                   const isCompleted = exec.status === 'CONCLUIDO';
                   const isRunning = exec.status === 'EM_EXECUCAO';
-                  const isBlocked = exec.status === 'BLOQUEADO';
+                  const isBlocked = false;
                   
                   const hasPendingDependencies = activity.dependencia.some(depName => {
                     const depAct = activities.find(a => a.nome === depName || a.biRelacionado === depName);

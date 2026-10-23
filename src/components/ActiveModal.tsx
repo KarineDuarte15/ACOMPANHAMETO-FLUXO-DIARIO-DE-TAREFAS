@@ -60,7 +60,7 @@ export const ActiveModal: React.FC<ActiveModalProps> = ({
     }
   };
 
-  const isAtrasado = execution.status === 'ATRASADO';
+  const isAtrasado = Boolean(execution.delaySeconds && execution.delaySeconds > 0);
   const isCritical = activity.priority === 'high' && isAtrasado;
 
   let alertColor = 'border-[#F2B705] bg-amber-50 text-[#C97C3B]';

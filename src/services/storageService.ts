@@ -333,7 +333,7 @@ export const storageService = {
     const completedExecs = executions.filter(e => e.status === 'CONCLUIDO');
     const completed = completedExecs.length;
     
-    const delayed = executions.filter(e => e.status === 'ATRASADO' || (e.delaySeconds && e.delaySeconds > 0)).length;
+    const delayed = executions.filter(e => Boolean(e.delaySeconds && e.delaySeconds > 0)).length;
     const notCompleted = totalPlanned - completed;
     
     let totalDurationSeconds = 0;
@@ -417,7 +417,7 @@ export const storageService = {
         let delayReason = '';
 
         if (statusRand < 0.08) {
-          status = 'NAO_REALIZADO';
+          status = 'PENDENTE';
           delayReason = 'Sistema indisponível';
         } else {
           const [hour, min] = exec.scheduledTime.split(':').map(Number);

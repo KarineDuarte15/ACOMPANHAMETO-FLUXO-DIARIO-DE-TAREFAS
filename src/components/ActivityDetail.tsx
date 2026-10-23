@@ -196,9 +196,9 @@ export const ActivityDetail: React.FC<ActivityDetailProps> = ({
                   <button
                     onClick={() => onResetExecution(execution.id)}
                     className="p-2 bg-red-50 hover:bg-red-100 text-[#F21D2F] rounded-lg border border-red-100 transition"
-                    title="Resetar conclusão (Voltar para Pendente)"
+                    title="Marcar como não concluída / pendente"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-3.5 w-3.5" /> Não concluída / Pendente
                   </button>
                 </div>
               )}

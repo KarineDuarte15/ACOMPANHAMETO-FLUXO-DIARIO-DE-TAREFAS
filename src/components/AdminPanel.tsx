@@ -95,20 +95,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const unverifiedDirectories = directories.filter(d => !d.ativo).length;
   
   // Rotinas com Falha / Bloqueadas
-  const failedExecutions = executions.filter(e => e.status === 'ATRASADO' || e.status === 'BLOQUEADO').length;
-  const blockedExecutions = executions.filter(e => e.status === 'BLOQUEADO').length;
+  const failedExecutions = executions.filter(e => Boolean(e.delaySeconds && e.delaySeconds > 0)).length;
+  const blockedExecutions = 0;
 
   // Saúde da Rotina Cálculo
   // Se houver algum processo P0 em falha crítica (nos logs ativos ou execuções de hoje): status = CRÍTICO
   // Se houver problemas em P2/P3: status = ATENÇÃO
   // Caso contrário: OK (96%)
   const isP0InFailure = useMemo(() => {
-    // Check if any P0 execution for today is BLOQUEADO or ATRASADO
+    // Delays are tracked as metadata; execution status remains pending/running/completed.
     const p0Executions = executions.filter(e => {
       const act = activities.find(a => a.id === e.activityId);
       return act?.prioridade === 'P0';
     });
-    const hasP0ExecFailure = p0Executions.some(e => e.status === 'BLOQUEADO' || e.status === 'ATRASADO' || e.status === 'NAO_REALIZADO');
+    const hasP0ExecFailure = p0Executions.some(e => Boolean(e.delaySeconds && e.delaySeconds > 0));
 
     // Check if any P0 log is in ERRO status (ignoring Captados_Fora_Alerta which is known exception)
     const p0Logs = logs.filter(l => {
@@ -127,7 +127,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     
     // Check for P1/P2/P3 errors
     const hasOtherLogFailures = logs.some(l => l.status === 'ERRO');
-    const hasOtherExecFailures = executions.some(e => e.status === 'ATRASADO' || e.status === 'BLOQUEADO');
+    const hasOtherExecFailures = executions.some(e => Boolean(e.delaySeconds && e.delaySeconds > 0));
     
     if (hasOtherLogFailures || hasOtherExecFailures) {
       return { status: 'ATENCAO', label: 'SAÚDE EM ATENÇÃO', color: 'bg-amber-100 text-amber-800 border-amber-200', text: 'Rotinas secundárias (P1/P2/P3) com problemas.', pct: 84 };

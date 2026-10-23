@@ -11,7 +11,7 @@ export const Indicators: React.FC<IndicatorsProps> = ({ executions, activities }
   const total = executions.length;
   const completed = executions.filter((e) => e.status === 'CONCLUIDO').length;
   const delayed = executions.filter(
-    (e) => e.status === 'ATRASADO' || (e.delaySeconds && e.delaySeconds > 0)
+    (e) => Boolean(e.delaySeconds && e.delaySeconds > 0)
   ).length;
   const pending = executions.filter((e) => e.status === 'PENDENTE').length;
 
