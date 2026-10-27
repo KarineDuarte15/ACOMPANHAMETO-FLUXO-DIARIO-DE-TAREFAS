@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
+import { db } from '../services/firebase';
+import { collection, doc, setDoc, onSnapshot, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 
 interface MonitorRow {
   'Data/Hora (HH:MM:SS)': string;
@@ -21,31 +23,75 @@ export const MonitoringPanel: React.FC = () => {
   const [rows, setRows] = useState<MonitorRow[]>([]);
   const [lastUpload, setLastUpload] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState<'all' | 'Painel BI' | 'Base de Dados'>('all');
+  const [selectedHour, setSelectedHour] = useState<string>('now');
+  const [showAlertModal, setShowAlertModal] = useState<boolean>(false);
+  const [alertMessages, setAlertMessages] = useState<string[]>([]);
 
+  // Limpeza automática de dados com mais de 30 dias no Firebase
+  const limparDadosAntigosFirebase = async () => {
+    try {
+      const trintaDiasAtras = Date.now() - (30 * 24 * 60 * 60 * 1000);
+      const q = query(collection(db, "optimusbi_monitoramento"), where("timestampMs", "<", trintaDiasAtras));
+      const snapshot = await getDocs(q);
+      const apagar = snapshot.docs.map(d => deleteDoc(doc(db, "optimusbi_monitoramento", d.id)));
+      await Promise.all(apagar);
+    } catch (e) {
+      console.error("Erro na retenção de 30 dias:", e);
+    }
+  };
+
+  // Escuta em tempo real o Firebase Firestore
   useEffect(() => {
-    const savedData = localStorage.getItem('optimusbi_vercel_rows');
-    const savedTime = localStorage.getItem('optimusbi_vercel_time');
-    if (savedData) setRows(JSON.parse(savedData));
-    if (savedTime) setLastUpload(savedTime);
+    limparDadosAntigosFirebase();
+    const unsub = onSnapshot(collection(db, "optimusbi_monitoramento"), (snapshot) => {
+      if (!snapshot.empty) {
+        // Pega o documento mais recente baseado no timestamp
+        const docs = snapshot.docs.map(d => d.data());
+        docs.sort((a, b) => b.timestampMs - a.timestampMs);
+        const maisRecente = docs[0];
+        if (maisRecente && maisRecente.rows) {
+          setRows(maisRecente.rows);
+          setLastUpload(maisRecente.lastUpload || '');
+
+          // Verifica se há erros críticos para disparar o Pop-up de Alerta
+          const errosCriticos = maisRecente.rows
+            .filter((r: MonitorRow) => r['Status'] === 'ERRO' || r['Status'] === 'ERR')
+            .map((r: MonitorRow) => `${r['Processo']}: ${r['Alertas / Erros']}`);
+          
+          if (errosCriticos.length > 0) {
+            setAlertMessages(errosCriticos);
+            setShowAlertModal(true);
+          }
+        }
+      }
+    });
+
+    return () => unsub();
   }, []);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload manual ou automatizado via input
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       const bstr = evt.target?.result;
       const wb = XLSX.read(bstr, { type: 'binary' });
-      const wsname = wb.SheetNames[0]; // Lê a aba "Resumo_Diario" gerada pelo Python
+      const wsname = wb.SheetNames[0];
       const ws = wb.Sheets[wsname];
       const data = XLSX.utils.sheet_to_json<MonitorRow>(ws);
 
       const nowStr = new Date().toLocaleString('pt-BR');
-      setRows(data);
-      setLastUpload(nowStr);
-      localStorage.setItem('optimusbi_vercel_rows', JSON.stringify(data));
-      localStorage.setItem('optimusbi_vercel_time', nowStr);
+      const payload = {
+        id: 'painel_atual',
+        rows: data,
+        lastUpload: nowStr,
+        timestampMs: Date.now()
+      };
+
+      // Salva no Firestore para atualizar todas as telas da Vercel em tempo real
+      await setDoc(doc(db, "optimusbi_monitoramento", "painel_atual"), payload);
     };
     reader.readAsBinaryString(file);
   };
@@ -56,74 +102,96 @@ export const MonitoringPanel: React.FC = () => {
 
   const countStatus = (st: string) => filteredRows.filter(r => r['Status'] === st).length;
 
-  const getStatusColor = (st: string) => {
-    switch (st?.toUpperCase()) {
-      case 'OK': return 'border-emerald-500 bg-emerald-500';
-      case 'ERRO':
-      case 'ERR': return 'border-[#F21D2F] bg-[#F21D2F]';
-      case 'ALERTA':
-      case 'WARN': return 'border-[#F2B705] bg-[#F2B705]';
-      case 'RODANDO':
-      case 'RUN': return 'border-[#0339A6] bg-[#0339A6]';
-      default: return 'border-slate-400 bg-slate-400';
-    }
-  };
-
-  const getPrioBadge = (prio: string) => {
-    if (prio === 'P0') return 'bg-[#F21D2F] text-white';
-    if (prio === 'P1') return 'bg-[#F24405] text-white';
-    if (prio === 'P2') return 'bg-[#F2B705] text-[#1F2937]';
-    return 'bg-[#0339A6] text-white';
+  // Mapeamento dos relatórios na pasta public/docs/
+  const getDocLink = (processo: string) => {
+    const map: { [key: string]: string } = {
+      'BI Alerta Vagas v2': 'Relatorio_Completo_BI_Relatorio_Alerta_de_Vagas_v2.html',
+      'BI Alerta Vagas Tele Saúde': 'Relatorio_Completo_BI_BI_Alerta_Vagas_TeleSaude.html',
+      'BI Necessidade de Compra': 'Relatorio_Completo_BI_BI_NECESSIDADE_COMPRA.html',
+      'Estoque e Abastecimento': 'Relatorio_Completo_BI_Relatorio_de_Estoque_e_Abastecimento_v2.html',
+      'BI Relatório de Consultas Disponibilizadas': 'Relatorio_Completo_BI_Relatorio_de_Consultas_Disponibilizadas_v2.html',
+      'BI Farol ICH (DGE)': 'Relatorio_Completo_BI_Farol_de_Indice_Consultas_por_Hora_ICH.html',
+      'BI Relatório de Consultas em Transferência': 'Relatorio_Completo_BI_RELATORIO_DE_CONSULTAS_EM_TRANSFERENCIA.html',
+      'BI Relatório de Cirurgias': 'Relatorio_Completo_BI_Relatorio_de_Cirurgias.html',
+      'BI Relatório Atraso dos Médicos': 'Relatorio_Completo_BI_Relatorio_Atraso_dos_Medicos.html',
+      'BI Relatório de Acompanhamento de Mensageria': 'Relatorio_Completo_BI_Relatorio_de_Acompanhamento_de_Mensageria.html',
+      'BI Relatorio_SAC': 'Relatorio_Completo_BI_Relatorio_SAC.html',
+      'BI INDICADORES REDE CRED': 'Relatorio_Completo_BI_Relatorio_Indicadores_Rede_Cred.html'
+    };
+    return map[processo] ? `/docs/${map[processo]}` : null;
   };
 
   return (
     <div className="min-h-screen bg-[#F2F2F2] text-[#1F2937] p-6">
-      {/* Cabeçalho Homogêneo OptimusBI */}
+      {/* Modal / Pop-up de Alerta Crítico */}
+      {showAlertModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full p-6 border-t-8 border-[#F21D2F] shadow-2xl">
+            <h3 className="text-lg font-bold text-[#F21D2F] mb-2 flex items-center gap-2">
+              🚨 Alerta Crítico de Monitoramento
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">Foram detetadas falhas ativas nos processos abaixo:</p>
+            <div className="max-h-60 overflow-y-auto space-y-2 mb-5">
+              {alertMessages.map((msg, idx) => (
+                <div key={idx} className="bg-red-50 text-[#F21D2F] p-2.5 rounded text-xs font-semibold border-l-4 border-[#F21D2F]">
+                  {msg}
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowAlertModal(false)}
+              className="w-full bg-[#0339A6] hover:bg-[#122A44] text-white font-bold py-2 rounded-lg text-sm transition"
+            >
+              Compreendido / Fechar Alerta
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cabeçalho */}
       <div className="bg-[#0339A6] text-white rounded-xl p-5 shadow-md mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight">Monitoramento OptimusBI (Sincronizado via Python)</h2>
+          <h2 className="text-xl font-bold tracking-tight">Monitoramento OptimusBI (Tempo Real - Vercel)</h2>
           <p className="text-xs text-slate-200 mt-1">
-            Última carga (.xlsx): <span className="font-mono bg-[#122A44] text-[#F2B705] px-2 py-0.5 rounded">{lastUpload || 'Aguardando arquivo...'}</span>
+            Informação atualizada pela última vez no horário registrado: <span className="font-mono bg-[#122A44] text-[#F2B705] px-2 py-0.5 rounded">{lastUpload || 'Aguardando sincronização...'}</span>
           </p>
         </div>
-
-        {/* Input de Arquivo usado pelo Robô Python a cada 30 minutos */}
         <div className="flex items-center gap-3">
-          <label
-            htmlFor="upload-monitoramento-xlsx"
-            className="cursor-pointer bg-[#F2B705] hover:bg-[#122A44] hover:text-[#F2B705] text-[#122A44] font-bold text-sm px-4 py-2 rounded-lg transition"
-          >
-            📥 Incluir Relatório (.xlsx)
+          <label htmlFor="upload-xlsx" className="cursor-pointer bg-[#F2B705] hover:bg-[#122A44] hover:text-[#F2B705] text-[#122A44] font-bold text-sm px-4 py-2 rounded-lg transition">
+            📥 Enviar Planilha (.xlsx)
           </label>
-          <input
-            id="upload-monitoramento-xlsx"
-            data-testid="upload-monitoramento-xlsx"
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
+          <input id="upload-xlsx" type="file" accept=".xlsx" onChange={handleFileUpload} className="hidden" />
         </div>
       </div>
 
-      {/* Sub-abas Homogêneas */}
-      <div className="flex gap-2 mb-5">
-        {(['all', 'Painel BI', 'Base de Dados'] as const).map(cat => (
-          <button
-            key={cat}
-            onClick={() => setActiveCategory(cat)}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
-              activeCategory === cat
-                ? 'bg-[#0339A6] text-white shadow'
-                : 'bg-white text-slate-700 border border-slate-200 hover:bg-[#122A44] hover:text-white'
-            }`}
-          >
-            {cat === 'all' ? 'Visão Geral (Todos)' : cat}
-          </button>
-        ))}
+      {/* Filtro de Horário e Abas */}
+      <div className="bg-white p-3 rounded-lg border border-slate-200 mb-5 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex gap-2">
+          {(['all', 'Painel BI', 'Base de Dados'] as const).map(cat => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+                activeCategory === cat ? 'bg-[#0339A6] text-white shadow' : 'bg-slate-100 text-slate-700 hover:bg-[#122A44] hover:text-white'
+              }`}
+            >
+              {cat === 'all' ? 'Visão Geral' : cat}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="font-semibold text-slate-600">⏱️ Filtro de Horário:</span>
+          <select value={selectedHour} onChange={(e) => setSelectedHour(e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white">
+            <option value="now">Tempo Real (Atual)</option>
+            <option value="06:00">06:00</option>
+            <option value="09:00">09:00</option>
+            <option value="12:00">12:00</option>
+            <option value="18:00">18:00</option>
+          </select>
+        </div>
       </div>
 
-      {/* KPIs */}
+      {/* Cards de Indicadores (KPIs) */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div className="bg-white p-4 rounded-lg border border-slate-200 border-l-4 border-l-[#0339A6]">
           <b className="text-2xl block">{filteredRows.length}</b>
@@ -143,63 +211,36 @@ export const MonitoringPanel: React.FC = () => {
         </div>
         <div className="bg-white p-4 rounded-lg border border-slate-200 border-l-4 border-l-[#F21D2F]">
           <b className="text-2xl block">{countStatus('ERR')}</b>
-          <span className="text-xs text-slate-500">Crítico / Erro</span>
+          <span className="text-xs text-slate-500">Com Erro</span>
         </div>
       </div>
 
-      {/* Cards Detalhados */}
+      {/* Grid de Cards com Botão de Relatório */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredRows.map((r, i) => {
-          const stColor = getStatusColor(r['Status']);
+          const docLink = getDocLink(r['Processo']);
           return (
-            <div key={i} className={`bg-white rounded-lg border border-slate-200 border-t-4 ${stColor.split(' ')[0]} p-4 shadow-sm`}>
+            <div key={i} className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm relative">
               <div className="flex justify-between items-start gap-2 mb-2">
                 <h3 className="font-bold text-[#0339A6] text-base">{r['Processo']}</h3>
-                <span className={`text-xs font-bold text-white px-2.5 py-0.5 rounded-full ${stColor.split(' ')[1]}`}>
+                <span className="text-xs font-bold text-white px-2.5 py-0.5 rounded-full bg-slate-700">
                   {r['Status']}
                 </span>
               </div>
-
-              <div className="flex gap-2 mb-3 text-xs font-bold">
-                <span className={`px-2 py-0.5 rounded ${getPrioBadge(r['Prioridade'])}`}>
-                  Prioridade {r['Prioridade']}
-                </span>
-                <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
-                  {r['Categoria']}
-                </span>
+              <div className="text-xs space-y-1 mb-4 text-slate-600">
+                <div>Execuções: {r['Execuções Hoje']} ({r['Sucessos Hoje']} ok / {r['Erros Hoje']} erro)</div>
+                <div>Tempo Médio: {r['Tempo Médio Processo (min)']} min</div>
+                <div>Meta: {r['Meta Diária / Mensal']}</div>
               </div>
-
-              <div className="text-xs space-y-1.5 divide-y divide-dashed divide-slate-200">
-                <div className="flex justify-between py-1">
-                  <span className="text-slate-500">Execuções Hoje:</span>
-                  <span className="font-medium">{r['Execuções Hoje']} ({r['Sucessos Hoje']} ok / {r['Erros Hoje']} erro)</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-slate-500">Último Fim:</span>
-                  <span className="font-medium">{r['Último Fim (HH:MM:SS)']}</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-slate-500">Tempo Médio Processo:</span>
-                  <span className="font-medium">{r['Tempo Médio Processo (min)']} min</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-slate-500">Tempo Médio / Arquivo:</span>
-                  <span className="font-medium">{r['Tempo Médio / Arquivo (min)']} min/arq</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-slate-500">Meta Diária / Mensal:</span>
-                  <span className="font-medium text-right">{r['Meta Diária / Mensal']}</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-slate-500">Verificado em:</span>
-                  <span className="font-bold">{r['Data/Hora (HH:MM:SS)']}</span>
-                </div>
-              </div>
-
-              {r['Alertas / Erros'] && (
-                <div className="mt-3 p-2 rounded bg-red-50 text-[#F21D2F] border-l-4 border-[#F21D2F] text-xs font-medium">
-                  {r['Alertas / Erros']}
-                </div>
+              {docLink && (
+                <a
+                  href={docLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block w-full text-center bg-[#122A44] hover:bg-[#0339A6] text-[#F2B705] font-semibold text-xs py-2 rounded transition"
+                >
+                  📄 Abrir Relatório Técnico
+                </a>
               )}
             </div>
           );

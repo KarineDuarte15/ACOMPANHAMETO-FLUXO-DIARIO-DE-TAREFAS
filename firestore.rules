@@ -46,5 +46,13 @@ service cloud.firestore {
       allow create: if isAuthenticated() && isActive();
       allow update, delete: if false; // Logs são imutáveis e append-only
     }
+    service cloud.firestore {
+  match /databases/{database}/documents {
+    match /optimusbi_monitoramento/{document=**} {
+      allow read, write: if true;
+    }
+    match /{document=**} {
+      allow read, write: if true;
+    }
   }
 }
