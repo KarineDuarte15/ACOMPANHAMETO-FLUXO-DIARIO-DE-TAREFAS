@@ -21,7 +21,7 @@ interface MonitorRow {
 
 export const MonitoringPanel: React.FC = () => {
   const [rows, setRows] = useState<MonitorRow[]>([]);
-  const [lastUpload, setLastUpload] = useState<string>('');
+  const [lastUpload, setLastUpload] = useState<string>('Aguardando sincronização...');
   const [activeCategory, setActiveCategory] = useState<'all' | 'Painel BI' | 'Base de Dados'>('all');
   const [selectedHour, setSelectedHour] = useState<string>('now');
   const [showAlertModal, setShowAlertModal] = useState<boolean>(false);
@@ -51,7 +51,7 @@ export const MonitoringPanel: React.FC = () => {
         const maisRecente = docs[0];
         if (maisRecente && maisRecente.rows) {
           setRows(maisRecente.rows);
-          setLastUpload(maisRecente.lastUpload || '');
+          setLastUpload(maisRecente.lastUpload || 'Atualizado recentemente');
 
           // Verifica se há erros críticos para disparar o Pop-up de Alerta
           const errosCriticos = maisRecente.rows
@@ -64,6 +64,8 @@ export const MonitoringPanel: React.FC = () => {
           }
         }
       }
+    }, (error) => {
+      console.error("Erro ao escutar dados do Firebase:", error);
     });
 
     return () => unsub();
@@ -76,22 +78,31 @@ export const MonitoringPanel: React.FC = () => {
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
-      const bstr = evt.target?.result;
-      const wb = XLSX.read(bstr, { type: 'binary' });
-      const wsname = wb.SheetNames[0];
-      const ws = wb.Sheets[wsname];
-      const data = XLSX.utils.sheet_to_json<MonitorRow>(ws);
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json<MonitorRow>(ws);
 
-      const nowStr = new Date().toLocaleString('pt-BR');
-      const payload = {
-        id: 'painel_atual',
-        rows: data,
-        lastUpload: nowStr,
-        timestampMs: Date.now()
-      };
+        const nowStr = new Date().toLocaleString('pt-BR');
+        const payload = {
+          id: 'estado_atual',
+          rows: data,
+          lastUpload: nowStr,
+          timestampMs: Date.now()
+        };
 
-      // Salva no Firestore para atualizar todas as telas da Vercel em tempo real
-      await setDoc(doc(db, "optimusbi_monitoramento", "painel_atual"), payload);
+        // Salva no Firestore para atualizar todas as telas em tempo real
+        await setDoc(doc(db, "optimusbi_monitoramento", "estado_atual"), payload);
+        setRows(data);
+        setLastUpload(nowStr);
+      } catch (error) {
+        console.error("Erro ao processar o ficheiro Excel:", error);
+      }
+    };
+    reader.onerror = () => {
+      console.error("Erro ao ler o ficheiro Excel:", reader.error);
     };
     reader.readAsBinaryString(file);
   };
