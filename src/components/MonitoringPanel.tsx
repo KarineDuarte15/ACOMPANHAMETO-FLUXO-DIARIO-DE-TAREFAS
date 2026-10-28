@@ -169,9 +169,9 @@ export const MonitoringPanel: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           <label htmlFor="upload-xlsx" className="cursor-pointer bg-[#F2B705] hover:bg-[#122A44] hover:text-[#F2B705] text-[#122A44] font-bold text-sm px-4 py-2 rounded-lg transition">
-            📥 Enviar Planilha (.xlsx)
+            📥 Incluir Relatório (.xlsx)
           </label>
-          <input id="upload-xlsx" type="file" accept=".xlsx" onChange={handleFileUpload} className="hidden" />
+          <input id="upload-xlsx" type="file" accept=".xlsx,.xls" onChange={handleFileUpload} className="hidden" />
         </div>
       </div>
 
@@ -242,6 +242,7 @@ export const MonitoringPanel: React.FC = () => {
                 <div>Execuções: {r['Execuções Hoje']} ({r['Sucessos Hoje']} ok / {r['Erros Hoje']} erro)</div>
                 <div>Tempo Médio: {r['Tempo Médio Processo (min)']} min</div>
                 <div>Meta: {r['Meta Diária / Mensal']}</div>
+                <div className="text-[11px] text-slate-400 mt-2">Verificado em: {r['Data/Hora (HH:MM:SS)']}</div>
               </div>
               {docLink && (
                 <a
